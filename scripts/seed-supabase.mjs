@@ -35,13 +35,32 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const dataFilePath = path.resolve('.data/portal-data.json')
-if (!fs.existsSync(dataFilePath)) {
-  console.error(`Error: Data file not found at ${dataFilePath}`)
-  process.exit(1)
+let articles = []
+
+if (fs.existsSync(dataFilePath)) {
+  try {
+    const data = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8'))
+    articles = data.articles || []
+  } catch {
+    // fallback to mockNews
+  }
 }
 
-const data = JSON.parse(fs.readFileSync(dataFilePath, 'utf-8'))
-const articles = data.articles || []
+if (articles.length === 0) {
+  // Load directly from mockNews.ts
+  const mockNewsPath = path.resolve('src/data/mockNews.ts')
+  let content = fs.readFileSync(mockNewsPath, 'utf-8')
+  content = content.replace(/import\s*\{[^}]*\}\s*from\s*['"]@\/types\/news['"]/, '')
+  content = content.replace('export const mockNews: NewsArticle[] =', 'export const mockNews =')
+  const tempFile = path.resolve('scripts/_temp_mock_seed.mjs')
+  fs.writeFileSync(tempFile, content, 'utf-8')
+  try {
+    const { mockNews } = await import(`file://${tempFile}`)
+    articles = mockNews || []
+  } finally {
+    try { fs.unlinkSync(tempFile) } catch {}
+  }
+}
 
 console.log(`Starting seed of ${articles.length} articles to Supabase (${supabaseUrl})...`)
 
