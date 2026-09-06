@@ -182,7 +182,7 @@ export default function AiDraftsManager({ initialDrafts, initialLogs }: AiDrafts
                     </div>
 
                     <h3 className="font-bold text-slate-900 text-base leading-snug hover:text-red-600 transition-colors">
-                      <Link href={`/admin/articles/${draft.id}`}>
+                      <Link href={`/admin/articles/${draft.id}/edit`}>
                         {draft.title}
                       </Link>
                     </h3>
@@ -217,7 +217,7 @@ export default function AiDraftsManager({ initialDrafts, initialLogs }: AiDrafts
                     </button>
 
                     <Link
-                      href={`/admin/articles/${draft.id}`}
+                      href={`/admin/articles/${draft.id}/edit`}
                       className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
                     >
                       ✏️ সম্পাদনা

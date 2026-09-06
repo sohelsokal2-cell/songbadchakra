@@ -34,7 +34,7 @@ export const DEFAULT_SOURCES: NewsSource[] = [
     id: 'src-daily-star',
     name: 'ডেইলি স্টার বাংলা',
     url: 'https://bangla.thedailystar.net',
-    feedUrl: 'https://bangla.thedailystar.net/feed',
+    feedUrl: 'https://bangla.thedailystar.net/rss.xml',
     category: 'bangladesh',
     categoryLabel: 'বাংলাদেশ',
     isActive: true,
@@ -111,7 +111,7 @@ async function loadLocalStore(): Promise<PortalDataStore> {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     const seed: PortalDataStore = {
-      articles: [...mockNews],
+      articles: [],
       contactMessages: [],
       sources: [...DEFAULT_SOURCES],
       aiLogs: [],

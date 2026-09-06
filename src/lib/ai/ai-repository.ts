@@ -510,6 +510,7 @@ export async function createAiRoleModel(data: {
 
 export async function updateAiRoleModel(id: string, updates: Partial<AiRoleModel>): Promise<boolean> {
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (updates.modelId !== undefined) payload.model_id = updates.modelId
   if (updates.priority !== undefined) payload.priority = updates.priority
   if (updates.apiKeyLabelId !== undefined) payload.api_key_label_id = updates.apiKeyLabelId || null
   if (updates.isActive !== undefined) payload.is_active = updates.isActive
@@ -623,6 +624,8 @@ export async function getAiJobs(params?: GetAiJobsParams): Promise<{ jobs: AiJob
     rawDescription: r.raw_description ? String(r.raw_description) : undefined,
     status: r.status as AiJobStatus,
     attempt: Number(r.attempt || 1),
+    maxAttempts: r.max_attempts ? Number(r.max_attempts) : undefined,
+    leaseExpiresAt: r.lease_expires_at ? String(r.lease_expires_at) : undefined,
     articleId: r.article_id ? String(r.article_id) : undefined,
     collectorResult: r.collector_result as AiJob['collectorResult'],
     writerResult: r.writer_result as AiJob['writerResult'],
@@ -640,7 +643,32 @@ export async function getAiJobs(params?: GetAiJobsParams): Promise<{ jobs: AiJob
     updatedAt: String(r.updated_at),
   }))
 
-  return { jobs, total: jobs.length }
+  // Accurate total for pagination: PostgREST exposes the filtered row count in
+  // the `content-range` header of a count=exact request. Falls back to the page
+  // length when the header is unavailable (e.g. Supabase not configured).
+  let total = jobs.length
+  const cfg = getSupabaseConfig()
+  if (cfg) {
+    try {
+      const countEndpoint = `ai_jobs?select=id${
+        params?.status && params.status !== 'all' ? `&status=eq.${encodeURIComponent(params.status)}` : ''
+      }`
+      const res = await fetch(`${cfg.url}/rest/v1/${countEndpoint}`, {
+        method: 'HEAD',
+        headers: { ...cfg.headers, Prefer: 'count=exact' },
+        cache: 'no-store',
+      })
+      const contentRange = res.headers.get('content-range')
+      if (contentRange) {
+        const parsed = Number(contentRange.split('/')[1])
+        if (!Number.isNaN(parsed)) total = parsed
+      }
+    } catch {
+      // keep jobs.length fallback
+    }
+  }
+
+  return { jobs, total }
 }
 
 export async function getAiJobById(id: string): Promise<AiJob | null> {
@@ -655,6 +683,8 @@ export async function getAiJobById(id: string): Promise<AiJob | null> {
     rawDescription: r.raw_description ? String(r.raw_description) : undefined,
     status: r.status as AiJobStatus,
     attempt: Number(r.attempt || 1),
+    maxAttempts: r.max_attempts ? Number(r.max_attempts) : undefined,
+    leaseExpiresAt: r.lease_expires_at ? String(r.lease_expires_at) : undefined,
     articleId: r.article_id ? String(r.article_id) : undefined,
     collectorResult: r.collector_result as AiJob['collectorResult'],
     writerResult: r.writer_result as AiJob['writerResult'],
@@ -694,6 +724,14 @@ export async function approveHeldJob(jobId: string): Promise<boolean> {
     })
   } else {
     // No draft was created; insert new published article
+    const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&auto=format&fit=crop&q=80'
+    // Respect the Rule Engine image decision: an image that failed review is
+    // never re-attached at approval time, even for legacy held jobs.
+    const imageUrl =
+      job.ruleEngineResult?.imageApproved === false
+        ? FALLBACK_IMAGE
+        : job.imageReviewerResult?.approvedImageUrl || FALLBACK_IMAGE
+
     const articlePayload = {
       title: job.writerResult.headline,
       slug: job.writerResult.slug || `news-${Date.now()}`,
@@ -703,7 +741,7 @@ export async function approveHeldJob(jobId: string): Promise<boolean> {
       category_label: job.writerResult.categoryLabel || 'বাংলাদেশ',
       source_name: job.collectorResult?.sourceName || 'সংবাদচক্র',
       source_url: job.sourceUrl,
-      image_url: job.imageReviewerResult?.approvedImageUrl || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&auto=format&fit=crop&q=80',
+      image_url: imageUrl,
       published_at: new Date().toISOString(),
       is_breaking: false,
       status: 'published',

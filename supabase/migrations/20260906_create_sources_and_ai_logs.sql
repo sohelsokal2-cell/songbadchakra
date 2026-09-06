@@ -91,7 +91,7 @@ values
     'src-daily-star',
     'ডেইলি স্টার বাংলা',
     'https://bangla.thedailystar.net',
-    'https://bangla.thedailystar.net/feed',
+    'https://bangla.thedailystar.net/rss.xml',
     'bangladesh',
     'বাংলাদেশ',
     true,

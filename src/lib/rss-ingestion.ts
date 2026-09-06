@@ -13,6 +13,7 @@ import {
   createAiLog,
   updateSource,
 } from '@/lib/news-repository'
+import { loadRuleConfig } from '@/lib/ai/rule-engine'
 
 export interface ParsedFeedItem {
   title: string
@@ -316,6 +317,18 @@ JSON ফরম্যাট:
 }
 
 /**
+ * Resolves how many feed items a single ingestion run should process.
+ * Respects the live Rule Engine config (`max_items_per_run`), clamped to a
+ * safe upper bound so one run can never overload the AI pipeline.
+ */
+export function getMaxItemsToProcess(configMaxItems: number | undefined, fetchedCount: number): number {
+  const configured = Number(configMaxItems)
+  const safeMax = Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 10
+  const capped = Math.min(safeMax, 20)
+  return Math.max(1, Math.min(capped, fetchedCount))
+}
+
+/**
  * Ingest a single RSS/Atom feed source
  */
 export async function ingestSource(source: NewsSource): Promise<IngestionResult> {
@@ -369,8 +382,10 @@ export async function ingestSource(source: NewsSource): Promise<IngestionResult>
         .filter((url) => url && url !== '#')
     )
 
-    // Limit to latest 10 items per fetch run to prevent overload
-    const itemsToProcess = items.slice(0, 10)
+    // Respect max_items_per_run from the live Rule Engine config
+    // (fallback 10) so the configured limit is actually effective.
+    const ruleConfig = await loadRuleConfig()
+    const itemsToProcess = items.slice(0, getMaxItemsToProcess(ruleConfig.maxItemsPerRun, items.length))
 
     for (const item of itemsToProcess) {
       // Deduplication check

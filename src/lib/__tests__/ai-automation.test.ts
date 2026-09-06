@@ -502,5 +502,98 @@ describe('SongbadChakra AI Automation Engine (Phase 10)', () => {
       expect(decision.decision).toBe('HOLD')
       expect(decision.reasons.some((r) => r.includes('Image is required by Rule Config'))).toBe(true)
     })
+
+    it('drops the failed image and still PUBLISHES when image_optional=true', () => {
+      // Image candidate exists but scored below imageMin (85).
+      const imageReviewer: ImageReviewerResult = {
+        status: 'FAIL',
+        score: 60,
+        decision: 'FAIL',
+        approvedImageUrl: 'https://broken-source.com/low-quality.jpg',
+        imageRelevance: 60,
+        imageQuality: 60,
+        licenseStatus: 'unknown',
+        attributionRequired: true,
+        issues: ['Image quality below threshold'],
+        latencyMs: 50,
+      }
+
+      const decision = evaluateRuleEngine({
+        collector: mockCollector,
+        writer: mockWriter,
+        factChecker: { status: 'PASS', score: 95, decision: 'PASS', criticalError: false, claims: [], issues: [], latencyMs: 100 },
+        imageReviewer,
+        seoReviewer: { status: 'PASS', score: 90, decision: 'PASS', issues: [], suggestions: [], latencyMs: 50 },
+        duplicateChecker: { status: 'PASS', decision: 'NEW_STORY', similarity: 0.1, issues: [], latencyMs: 50 },
+        config: baseConfig, // imageOptional: true
+      })
+
+      // Still allowed to publish WITHOUT the image…
+      expect(decision.decision).toBe('PUBLISH')
+      // …but the failed image must be stripped, never published.
+      expect(decision.imageApproved).toBe(false)
+      expect(decision.reasons.some((r) => r.includes('failed image removed'))).toBe(true)
+    })
+
+    it('keeps imageApproved=true when the image passes the threshold', () => {
+      const imageReviewer: ImageReviewerResult = {
+        status: 'PASS',
+        score: 92,
+        decision: 'PASS',
+        approvedImageUrl: 'https://images.unsplash.com/photo-good',
+        imageRelevance: 92,
+        imageQuality: 92,
+        licenseStatus: 'allowed',
+        attributionRequired: false,
+        issues: [],
+        latencyMs: 50,
+      }
+
+      const decision = evaluateRuleEngine({
+        collector: mockCollector,
+        writer: mockWriter,
+        factChecker: { status: 'PASS', score: 95, decision: 'PASS', criticalError: false, claims: [], issues: [], latencyMs: 100 },
+        imageReviewer,
+        seoReviewer: { status: 'PASS', score: 90, decision: 'PASS', issues: [], suggestions: [], latencyMs: 50 },
+        duplicateChecker: { status: 'PASS', decision: 'NEW_STORY', similarity: 0.1, issues: [], latencyMs: 50 },
+        config: baseConfig,
+      })
+
+      expect(decision.decision).toBe('PUBLISH')
+      expect(decision.imageApproved).toBe(true)
+    })
+
+    it('drops the failed image and HOLDS when image_optional=false', () => {
+      const configWithRequiredImageQuality: AiRuleConfig = {
+        ...baseConfig,
+        imageOptional: false,
+      }
+      const imageReviewer: ImageReviewerResult = {
+        status: 'FAIL',
+        score: 60,
+        decision: 'FAIL',
+        approvedImageUrl: 'https://broken-source.com/low-quality.jpg',
+        imageRelevance: 60,
+        imageQuality: 60,
+        licenseStatus: 'unknown',
+        attributionRequired: true,
+        issues: ['Image quality below threshold'],
+        latencyMs: 50,
+      }
+
+      const decision = evaluateRuleEngine({
+        collector: mockCollector,
+        writer: mockWriter,
+        factChecker: { status: 'PASS', score: 95, decision: 'PASS', criticalError: false, claims: [], issues: [], latencyMs: 100 },
+        imageReviewer,
+        seoReviewer: { status: 'PASS', score: 90, decision: 'PASS', issues: [], suggestions: [], latencyMs: 50 },
+        duplicateChecker: { status: 'PASS', decision: 'NEW_STORY', similarity: 0.1, issues: [], latencyMs: 50 },
+        config: configWithRequiredImageQuality,
+      })
+
+      expect(decision.decision).toBe('HOLD')
+      expect(decision.imageApproved).toBe(false)
+      expect(decision.reasons.some((r) => r.includes('below minimum'))).toBe(true)
+    })
   })
 })

@@ -9,6 +9,8 @@ import type { NewsArticle } from '@/types/news'
 export default function DistrictNewsSection({ articles }: { articles: NewsArticle[] }) {
   const [selectedDivision, setSelectedDivision] = useState<string>('all')
 
+  if (articles.length === 0) return null
+
   const filteredArticles = selectedDivision === 'all'
     ? articles.slice(0, 6)
     : articles.filter((article) => article.division === selectedDivision).slice(0, 6)

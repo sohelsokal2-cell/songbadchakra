@@ -34,6 +34,7 @@ export default async function AdminDashboardLayout({
           <div className="flex items-center gap-3 text-xs">
             <Link href="/admin" className="text-slate-300 hover:text-white">ড্যাশবোর্ড</Link>
             <Link href="/admin/articles" className="text-slate-300 hover:text-white">সংবাদ</Link>
+            <Link href="/admin/ai" className="text-emerald-400 hover:text-emerald-300 font-semibold">⚡ AI</Link>
             <Link href="/admin/articles/create" className="text-red-400 hover:text-red-300 font-semibold">+ নতুন</Link>
             <Link href="/admin/messages" className="text-amber-400 hover:text-amber-300 font-semibold">
               বার্তা ({stats.unreadMessages})

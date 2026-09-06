@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isAuthenticatedAdmin } from '@/lib/admin-auth'
 import { DuplicateSlugError, getArticleById, updateArticle, deleteArticle, toggleBreakingNews } from '@/lib/news-repository'
+import { isAllowedImageUrl } from '@/lib/utils'
 
 interface Params {
   params: Promise<{ id: string }>
@@ -40,13 +41,8 @@ export async function PUT(request: Request, { params }: Params) {
     if (body.slug !== undefined && (typeof body.slug !== 'string' || !body.slug.trim())) {
       return NextResponse.json({ error: 'একটি বৈধ স্লাগ প্রয়োজন।' }, { status: 400 })
     }
-    if (body.imageUrl !== undefined) {
-      try {
-        const image = new URL(String(body.imageUrl))
-        if (image.protocol !== 'https:' || !['picsum.photos', 'images.unsplash.com'].includes(image.hostname)) throw new Error()
-      } catch {
-        return NextResponse.json({ error: 'ছবির URL অনুমোদিত হোস্ট থেকে হতে হবে।' }, { status: 400 })
-      }
+    if (body.imageUrl !== undefined && !isAllowedImageUrl(body.imageUrl)) {
+      return NextResponse.json({ error: 'ছবির URL বৈধ ও অনুমোদিত হোস্ট থেকে হতে হবে।' }, { status: 400 })
     }
     const updated = await updateArticle(id, update)
     if (!updated) {

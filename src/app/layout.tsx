@@ -67,6 +67,7 @@ export default function RootLayout({
     <html
       lang="bn"
       className={`${notoBengali.variable} ${inter.variable}`}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body

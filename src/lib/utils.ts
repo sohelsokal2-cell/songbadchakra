@@ -135,3 +135,35 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'মতামত',         href: '/opinion' },
   { label: 'ভিডিও',         href: '/video' },
 ]
+
+/**
+ * Validate that an image URL is a safe HTTPS URL or a local absolute path (/images/...)
+ * Prevents SSRF to internal network, cloud metadata endpoints, and script schemes.
+ */
+export function isAllowedImageUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) return false
+  const trimmed = value.trim()
+  // Local static paths e.g. /images/... or /logo.png
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:') return false
+    const hostname = url.hostname.toLowerCase()
+    // Deny internal and metadata hosts
+    if (
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('172.16.') ||
+      hostname.startsWith('169.254.')
+    ) {
+      return false
+    }
+    return true
+  } catch {
+    return false
+  }
+}

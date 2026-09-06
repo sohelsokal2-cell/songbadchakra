@@ -1,35 +1,32 @@
 import { NextResponse } from 'next/server'
 import { getAllSources, getSourceById } from '@/lib/news-repository'
 import { ingestSource, type IngestionResult } from '@/lib/rss-ingestion'
+import { runAutomationCycle } from '@/lib/ai/job-recovery'
+import { verifyCronAuth } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * Validates request authentication for scheduled cron executions.
- * Accepts:
- *   - Bearer token in Authorization header matching CRON_SECRET or ADMIN_SESSION_SECRET
- *   - X-Cron-Secret header matching CRON_SECRET or ADMIN_SESSION_SECRET
+ * Runs the self-healing automation cycle (stale-job recovery, retries,
+ * dead-letter processing and queued-job execution) before fresh ingestion.
+ * Recovery is best-effort — failures never abort the ingestion pass.
  */
-function verifyCronAuth(request: Request): boolean {
-  const cronSecret = process.env.CRON_SECRET || process.env.ADMIN_SESSION_SECRET
-  if (!cronSecret) {
-    // If neither secret is set in non-production, allow execution with warning
-    if (process.env.NODE_ENV !== 'production') return true
-    return false
+async function runRecovery() {
+  try {
+    return await runAutomationCycle()
+  } catch (err) {
+    return {
+      recoveredStale: 0,
+      requeuedFailed: 0,
+      deadLettered: 0,
+      processedQueued: 0,
+      succeeded: 0,
+      failed: 0,
+      deadLetterQueue: 0,
+      error: err instanceof Error ? err.message : String(err),
+      timestamp: new Date().toISOString(),
+    }
   }
-
-  const authHeader = request.headers.get('authorization')
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim()
-    if (token === cronSecret) return true
-  }
-
-  const xCronSecret = request.headers.get('x-cron-secret')
-  if (xCronSecret && xCronSecret === cronSecret) {
-    return true
-  }
-
-  return false
 }
 
 async function handleIngest(request: Request, sourceId?: string) {
@@ -65,6 +62,8 @@ async function handleIngest(request: Request, sourceId?: string) {
     const totalSkipped = results.reduce((acc, r) => acc + r.skippedCount, 0)
     const totalFailed = results.reduce((acc, r) => acc + r.failedCount, 0)
 
+    const recovery = await runRecovery()
+
     return NextResponse.json(
       {
         success: true,
@@ -76,6 +75,7 @@ async function handleIngest(request: Request, sourceId?: string) {
           totalFailed,
         },
         results,
+        recovery,
       },
       {
         headers: {

@@ -8,6 +8,7 @@ import {
   generateSlug,
   processItemWithAi,
   ingestSource,
+  getMaxItemsToProcess,
 } from '@/lib/rss-ingestion'
 import { getAllArticles, getAllAiLogs } from '@/lib/news-repository'
 import type { NewsSource } from '@/types/news'
@@ -59,6 +60,26 @@ describe('RSS Ingestion & Sanitization', () => {
       const html = '<p>প্রথম <strong>আলো</strong> রিপোর্ট: <a href="#">বিস্তারিত</a></p>'
       const text = stripHtmlToText(html)
       expect(text).toBe('প্রথম আলো রিপোর্ট: বিস্তারিত')
+    })
+  })
+
+  describe('getMaxItemsToProcess (respects Rule Engine maxItemsPerRun)', () => {
+    it('uses the configured limit when it is lower than fetched items', () => {
+      expect(getMaxItemsToProcess(3, 12)).toBe(3)
+    })
+
+    it('never exceeds the safe upper bound of 20', () => {
+      expect(getMaxItemsToProcess(500, 500)).toBe(20)
+    })
+
+    it('falls back to 10 when the config is missing or invalid', () => {
+      expect(getMaxItemsToProcess(undefined, 30)).toBe(10)
+      expect(getMaxItemsToProcess(0, 30)).toBe(10)
+      expect(getMaxItemsToProcess(Number.NaN, 30)).toBe(10)
+    })
+
+    it('clamps to the item count when fewer items are available', () => {
+      expect(getMaxItemsToProcess(10, 2)).toBe(2)
     })
   })
 

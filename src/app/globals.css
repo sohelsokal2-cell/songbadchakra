@@ -57,8 +57,12 @@
   box-sizing: border-box;
 }
 
-html {
+html[data-scroll-behavior="smooth"] {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+html {
   -webkit-text-size-adjust: 100%;
 }
 
@@ -73,16 +77,18 @@ body {
 }
 
 /* ─── Bengali Typography ─────────────────────────────────────────────────── */
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-bengali);
-  font-weight: 700;
-  line-height: 1.4;
-  color: var(--color-secondary);
-}
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-bengali);
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--color-secondary);
+  }
 
-p {
-  font-family: var(--font-bengali);
-  line-height: 1.8;
+  p {
+    font-family: var(--font-bengali);
+    line-height: 1.8;
+  }
 }
 
 /* ─── Breaking News Ticker ────────────────────────────────────────────────── */

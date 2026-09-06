@@ -1,17 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isAuthenticatedAdmin } from '@/lib/admin-auth'
 import { getAllArticles, createArticle, DuplicateSlugError } from '@/lib/news-repository'
-
-const ALLOWED_IMAGE_HOSTS = new Set(['picsum.photos', 'images.unsplash.com'])
-
-function isAllowedImageUrl(value: unknown): value is string {
-  try {
-    const url = new URL(String(value))
-    return url.protocol === 'https:' && ALLOWED_IMAGE_HOSTS.has(url.hostname)
-  } catch {
-    return false
-  }
-}
+import { isAllowedImageUrl } from '@/lib/utils'
 
 export async function GET(request: Request) {
   const isAuth = await isAuthenticatedAdmin()

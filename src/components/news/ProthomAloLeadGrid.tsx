@@ -17,6 +17,16 @@ export default function ProthomAloLeadGrid({
   latestNews,
   popularNews,
 }: ProthomAloLeadGridProps) {
+  if (!leadStory) {
+    return (
+      <div className="bg-white rounded-2xl border border-[var(--color-border)] p-12 text-center text-slate-500 font-bengali mb-10 shadow-xs">
+        <div className="text-4xl mb-3">📰</div>
+        <h3 className="text-lg font-bold text-slate-800">বর্তমানে কোনো প্রকাশিত সংবাদ নেই</h3>
+        <p className="text-sm text-slate-500 mt-1">অ্যাডমিন প্যানেল থেকে &apos;AI ইঞ্জিন&apos; ইনজেশন চালান অথবা নতুন সংবাদ লিখুন।</p>
+      </div>
+    )
+  }
+
   return (
     <section className="mb-10" aria-label="প্রধান সংবাদ">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

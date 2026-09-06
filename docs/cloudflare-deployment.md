@@ -33,7 +33,17 @@ npx wrangler secret put ADMIN_PASSWORD
 npx wrangler secret put ADMIN_SESSION_SECRET
 npx wrangler secret put NEXT_PUBLIC_SUPABASE_URL
 npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+npx wrangler secret put CRON_SECRET
 ```
+
+> [!NOTE]
+> `CRON_SECRET` is REQUIRED for the hourly Cron Trigger (`0 * * * *` defined in
+> `wrangler.jsonc` → `triggers.crons`). The worker entry `worker.ts` wraps the
+> OpenNext-generated worker (`.open-next/worker.js`) and adds a `scheduled`
+> handler that POSTs to `/api/cron/rss`. That route runs the **job-recovery
+> cycle** (stale-lease recovery → retry with backoff → dead-letter processing →
+> queued-job dispatch) followed by fresh RSS ingestion. Deploying without
+> `CRON_SECRET` keeps the cron silent (403).
 
 > [!CAUTION]
 > NEVER put secrets in `wrangler.jsonc` as plaintext. Always use `wrangler secret put`.

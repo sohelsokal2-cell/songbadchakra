@@ -51,6 +51,8 @@ Copy-Item .data\portal-data_backup_XXXXXXXX_XXXXXX.json .data\portal-data.json
    - `supabase/migrations/20260905_create_contact_messages.sql` (বার্তা স্কিমা)
    - `supabase/migrations/20260906_create_sources_and_ai_logs.sql` (আরএসএস ও এআই লগ স্কিমা)
    - `supabase/migrations/20260906_seed_articles.sql` (প্রাথমিক সংবাদ ডেটা)
+   - `supabase/migrations/20260906_ai_automation.sql` (AI অটোমেশন ইঞ্জিন)
+   - `supabase/migrations/20260906_job_recovery.sql` (জব লিজ, রিট্রাই ও ডেড-লেটার কলাম)
 
 অথবা নোড স্ক্রিপ্ট ব্যবহার করে সরাসরি সীড চালান:
 ```bash

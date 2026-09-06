@@ -9,14 +9,21 @@ import {
 
 const loginAttempts = new Map<string, number[]>()
 
-function isLoginRateLimited(request: Request): boolean {
-  const key = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
+function isLoginRateLimited(key: string): boolean {
   const cutoff = Date.now() - 15 * 60 * 1000 // 15 minutes window
   const recent = (loginAttempts.get(key) || []).filter((timestamp) => timestamp > cutoff)
-  if (recent.length >= 5) return true
+  return recent.length >= 5
+}
+
+function recordFailedLoginAttempt(key: string): void {
+  const cutoff = Date.now() - 15 * 60 * 1000
+  const recent = (loginAttempts.get(key) || []).filter((timestamp) => timestamp > cutoff)
   recent.push(Date.now())
   loginAttempts.set(key, recent)
-  return false
+}
+
+function clearLoginAttempts(key: string): void {
+  loginAttempts.delete(key)
 }
 
 export function _resetRateLimitMap() {
@@ -36,9 +43,11 @@ export async function POST(request: Request) {
     }
 
     if (action === 'login') {
-      if (isLoginRateLimited(request)) {
+      const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
+
+      if (isLoginRateLimited(clientIp)) {
         return NextResponse.json(
-          { error: 'অতিরিক্ত ব্যর্থ বা পুনরাবৃত্ত প্রচেষ্টার কারণে লগইন সাময়িকভাবে স্থগিত করা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।' },
+          { error: 'অতিরিক্ত ব্যর্থ প্রচেষ্টার কারণে লগইন সাময়িকভাবে স্থগিত করা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।' },
           { status: 429 }
         )
       }
@@ -52,11 +61,15 @@ export async function POST(request: Request) {
 
       const isValid = validateCredentials(email, password)
       if (!isValid) {
+        recordFailedLoginAttempt(clientIp)
         return NextResponse.json(
           { error: 'ইমেইল অথবা পাসওয়ার্ড সঠিক নয়।' },
           { status: 401 }
         )
       }
+
+      // Successful login resets any previous failed attempts
+      clearLoginAttempts(clientIp)
 
       const token = generateSessionToken(email)
 

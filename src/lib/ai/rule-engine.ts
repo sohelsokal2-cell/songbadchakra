@@ -157,19 +157,35 @@ export function evaluateRuleEngine(input: RuleEngineInput): RuleEngineResult {
   const imageScore = imageReviewer.score
   const hasApprovedImage = Boolean(imageReviewer.approvedImageUrl)
   let imageOk: boolean
+  // Tracks whether the reviewed image may actually be attached to the article.
+  // A candidate that exists but scores below threshold is NEVER used, even when
+  // image_optional=true lets the article proceed without it.
+  let imageApproved: boolean
 
   if (config.requireImage && !hasApprovedImage) {
     imageOk = false
+    imageApproved = false
     reasons.push('Image is required by Rule Config but no valid image was found.')
   } else if (hasApprovedImage && imageScore < config.imageMin) {
-    imageOk = config.imageOptional  // if optional, still ok to proceed without it
+    // Image candidate exists but FAILED review. image_optional=true only allows
+    // the article to proceed WITHOUT the image — it does NOT allow publishing
+    // the failed image itself.
+    imageApproved = false
+    imageOk = config.imageOptional
     if (!imageOk) {
       reasons.push(`Image score ${imageScore} below minimum ${config.imageMin}.`)
     } else {
-      reasons.push(`Image score ${imageScore} low — proceeding without image (image_optional=true).`)
+      reasons.push(
+        `Image score ${imageScore} below minimum ${config.imageMin} — failed image removed (image_optional=true, publishing without it).`
+      )
     }
-  } else {
+  } else if (hasApprovedImage) {
     imageOk = true
+    imageApproved = true
+  } else {
+    // No image available from the source — proceed without one (image optional)
+    imageOk = true
+    imageApproved = false
   }
 
   // ── Check 8: SEO Reviewer ────────────────────────────────────────────────
@@ -219,6 +235,7 @@ export function evaluateRuleEngine(input: RuleEngineInput): RuleEngineResult {
   return {
     decision,
     reasons,
+    imageApproved,
     checks: {
       collector: collectorOk,
       writer: writerOk,

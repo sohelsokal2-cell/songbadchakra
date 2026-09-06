@@ -1,7 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "songbadchakra",
-  "main": ".open-next/worker.js",
+  // Custom worker entry that re-exports the OpenNext-generated worker
+  // (`.open-next/worker.js`) and adds the `scheduled` handler that drives
+  // `/api/cron/rss` on every Cron Trigger run.
+  "main": "worker.ts",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
@@ -11,5 +14,11 @@
   // Cache rules: never cache admin or API routes
   "rules": [
     { "type": "ESModule", "globs": ["**/*.js"], "fallthrough": true }
-  ]
+  ],
+  // Scheduled cron trigger — fires every hour to run the RSS ingestion pipeline
+  // AND the job-recovery/retry/dead-letter cycle via `worker.ts` -> /api/cron/rss.
+  // Requires CRON_SECRET environment variable set in Cloudflare dashboard.
+  "triggers": {
+    "crons": ["0 * * * *"]
+  }
 }

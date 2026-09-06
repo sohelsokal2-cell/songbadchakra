@@ -132,6 +132,7 @@ export type AiJobStatus =
   | 'held'
   | 'rejected'
   | 'failed'
+  | 'dead_letter'
 
 export interface AiJob {
   id: string
@@ -141,6 +142,8 @@ export interface AiJob {
   rawDescription?: string
   status: AiJobStatus
   attempt: number
+  maxAttempts?: number
+  leaseExpiresAt?: string
   articleId?: string
   collectorResult?: CollectorResult
   writerResult?: WriterResult
@@ -296,6 +299,11 @@ export type RuleEngineDecision = 'PUBLISH' | 'HOLD' | 'REJECT'
 export interface RuleEngineResult {
   decision: RuleEngineDecision
   reasons: string[]
+  // Whether the image attached by the Image Reviewer passed the threshold and
+  // may be used in the published article. When false (e.g. image scored below
+  // `imageMin` but `imageOptional` allows proceeding), the pipeline MUST drop
+  // the failed image and publish without it.
+  imageApproved: boolean
   checks: {
     collector: boolean
     writer: boolean

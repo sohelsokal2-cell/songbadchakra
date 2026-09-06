@@ -10,21 +10,30 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Run RSS Ingestion Script
+      - name: Trigger Rule Engine Pipeline via API
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Use Vercel URL until custom domain DNS is resolved
+          CRON_API_URL: ${{ secrets.CRON_API_URL || 'https://songbadchakra.vercel.app' }}
         run: |
-          node scripts/run-rss-ingestion.mjs
+          echo "🚀 Triggering RSS ingestion via Rule Engine API..."
+          HTTP_STATUS=$(curl \
+            --silent \
+            --output /tmp/cron_response.json \
+            --write-out "%{http_code}" \
+            --fail-with-body \
+            --retry 3 \
+            --retry-delay 15 \
+            --retry-all-errors \
+            --max-time 300 \
+            -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            "${CRON_API_URL}/api/cron/rss")
+          echo "HTTP Status: ${HTTP_STATUS}"
+          cat /tmp/cron_response.json || true
+          if [ "${HTTP_STATUS}" -lt 200 ] || [ "${HTTP_STATUS}" -ge 300 ]; then
+            echo "❌ Cron API call failed with HTTP ${HTTP_STATUS}"
+            exit 1
+          fi
+          echo "✅ RSS ingestion triggered successfully."

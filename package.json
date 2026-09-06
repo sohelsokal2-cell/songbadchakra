@@ -13,6 +13,7 @@
     "cf:preview": "opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare deploy",
     "ingest:rss": "node scripts/run-rss-ingestion.mjs",
+    "recover:jobs": "node scripts/recover-jobs.mjs",
     "test:smoke": "node scripts/smoke-test-supabase.mjs"
   },
   "dependencies": {

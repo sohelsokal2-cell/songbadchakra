@@ -43,7 +43,10 @@ export async function callOpenAiCompat({
     messages,
     temperature,
     max_tokens: maxTokens,
-    ...(responseFormat === 'json'
+    // response_format: json_object only works on specific providers/models.
+    // Skip it for Groq (qwen3 models don't support it) to avoid 400 errors.
+    // OpenRouter and NVIDIA NIM support it on most models.
+    ...(responseFormat === 'json' && providerName !== 'groq'
       ? { response_format: { type: 'json_object' } }
       : {}),
   }
@@ -76,10 +79,14 @@ export async function callOpenAiCompat({
     }
 
     const data = await response.json()
-    const text = data?.choices?.[0]?.message?.content
+    let text = data?.choices?.[0]?.message?.content
     if (!text) {
       throw new Error(`${providerName} returned empty content.`)
     }
+
+    // Qwen3 and some other reasoning models emit <think>...</think> blocks
+    // before the actual output. Strip them so JSON parsers see clean content.
+    text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim()
 
     return {
       text,

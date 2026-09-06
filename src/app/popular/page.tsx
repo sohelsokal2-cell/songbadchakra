@@ -47,49 +47,58 @@ export default async function PopularNewsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
         {/* ── Main List with Ranked Numbers ───────────────────────────────── */}
         <div className="space-y-4">
-          {popularNews.map((article, index) => (
-            <article
-              key={article.id}
-              className="bg-white p-4 sm:p-5 rounded-xl border border-[var(--color-border)] hover:border-red-200 transition-all shadow-xs flex flex-col sm:flex-row items-start gap-4 group"
-            >
-              {/* Rank Badge */}
-              <div className="shrink-0 w-10 h-10 rounded-full bg-red-50 text-[var(--color-brand-primary)] font-bold text-lg flex items-center justify-center font-bengali border border-red-100 group-hover:bg-[var(--color-brand-primary)] group-hover:text-white transition-colors">
-                {toBengaliNumber(index + 1)}
-              </div>
+          {popularNews.length === 0 ? (
+            <div className="bg-white p-8 rounded-xl border border-[var(--color-border)] text-center text-slate-500 font-bengali">
+              বর্তমানে কোনো পঠিত সংবাদ তালিকাভুক্ত নেই।
+            </div>
+          ) : (
+            popularNews.map((article, index) => (
+              <article
+                key={article.id}
+                className="bg-white p-4 sm:p-5 rounded-xl border border-[var(--color-border)] hover:border-red-200 transition-all shadow-xs flex flex-col sm:flex-row items-start gap-4 group"
+              >
+                {/* Rank Badge */}
+                <div className="shrink-0 w-10 h-10 rounded-full bg-red-50 text-[var(--color-brand-primary)] font-bold text-lg flex items-center justify-center font-bengali border border-red-100 group-hover:bg-[var(--color-brand-primary)] group-hover:text-white transition-colors">
+                  {toBengaliNumber(index + 1)}
+                </div>
 
-              {/* Thumbnail */}
-              <div className="w-full sm:w-44 h-32 shrink-0 relative rounded-lg overflow-hidden">
-                <Image
-                  src={article.imageUrl}
-                  alt={article.title}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-300"
-                  sizes="(max-width: 640px) 100vw, 176px"
-                />
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-xs text-[var(--color-brand-primary)] font-bold mb-1 font-bengali">
-                  <span>{article.categoryLabel}</span>
-                  <span className="text-gray-300">•</span>
-                  <span className="text-[var(--color-text-muted)] font-normal">
-                    {formatRelativeTime(article.publishedAt)}
+                {/* Thumbnail */}
+                <div className="relative w-full sm:w-36 aspect-[16/10] shrink-0 rounded-lg overflow-hidden bg-slate-100">
+                  <Image
+                    src={article.imageUrl}
+                    alt={article.title}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    sizes="(max-width: 640px) 100vw, 144px"
+                  />
+                  <span className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded font-bengali">
+                    {article.categoryLabel}
                   </span>
                 </div>
 
-                <h2 className="text-base sm:text-lg font-bold font-bengali text-[var(--color-text-primary)] group-hover:text-[var(--color-brand-primary)] transition-colors line-clamp-2 leading-snug mb-2">
+                {/* Content */}
+                <div className="flex-1 min-w-0">
                   <Link href={`/news/${article.slug}`}>
-                    {article.title}
+                    <h2 className="text-base sm:text-lg font-bold font-bengali text-[var(--color-text-primary)] group-hover:text-[var(--color-brand-primary)] transition-colors line-clamp-2 leading-snug mb-2">
+                      {article.title}
+                    </h2>
                   </Link>
-                </h2>
 
-                <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] font-bengali line-clamp-2 leading-relaxed">
-                  {article.summary}
-                </p>
-              </div>
-            </article>
-          ))}
+                  <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] font-bengali line-clamp-2 leading-relaxed mb-3">
+                    {article.summary}
+                  </p>
+
+                  <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)] font-bengali">
+                    <span className="text-[var(--color-brand-primary)] font-medium">
+                      {article.sourceName}
+                    </span>
+                    <span>•</span>
+                    <time dateTime={article.publishedAt}>{formatRelativeTime(article.publishedAt)}</time>
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
 
         {/* ── Sidebar ────────────────────────────────────────────────────── */}
@@ -99,20 +108,24 @@ export default async function PopularNewsPage() {
               তাজা সংবাদ
             </h3>
             <div className="space-y-3">
-              {latestSidebar.map((article) => (
-                <Link
-                  key={article.id}
-                  href={`/news/${article.slug}`}
-                  className="block group"
-                >
-                  <h4 className="text-xs font-semibold font-bengali text-[var(--color-text-primary)] group-hover:text-[var(--color-brand-primary)] transition-colors line-clamp-2">
-                    {article.title}
-                  </h4>
-                  <span className="text-[10px] text-[var(--color-text-muted)] font-bengali">
-                    {formatRelativeTime(article.publishedAt)}
-                  </span>
-                </Link>
-              ))}
+              {latestSidebar.length === 0 ? (
+                <p className="text-xs text-slate-400 font-bengali">কোনো সংবাদ নেই</p>
+              ) : (
+                latestSidebar.map((article) => (
+                  <Link
+                    key={article.id}
+                    href={`/news/${article.slug}`}
+                    className="block group"
+                  >
+                    <h4 className="text-xs font-semibold font-bengali text-[var(--color-text-primary)] group-hover:text-[var(--color-brand-primary)] transition-colors line-clamp-2">
+                      {article.title}
+                    </h4>
+                    <span className="text-[10px] text-[var(--color-text-muted)] font-bengali">
+                      {formatRelativeTime(article.publishedAt)}
+                    </span>
+                  </Link>
+                ))
+              )}
             </div>
           </div>
 

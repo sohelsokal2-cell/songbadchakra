@@ -3,6 +3,8 @@ import Image from 'next/image'
 import type { NewsArticle } from '@/types/news'
 
 export default function OpinionSection({ articles }: { articles: NewsArticle[] }) {
+  if (articles.length === 0) return null
+
   const opinions = articles
 
   return (

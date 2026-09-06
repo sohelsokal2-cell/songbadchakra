@@ -69,9 +69,18 @@ export async function callGemini(
     }
 
     const data = await response.json()
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+    const candidate = data?.candidates?.[0]
+    const finishReason = candidate?.finishReason
+    const text = candidate?.content?.parts?.[0]?.text
     if (!text) {
-      throw new Error('Gemini returned empty content.')
+      if (finishReason === 'MAX_TOKENS') {
+        throw new Error(
+          `Gemini model "${modelName}" hit MAX_TOKENS limit with empty output. ` +
+          'This model may have a very low token budget in the current API tier. ' +
+          'Try a different model (e.g. gemini-2.5-flash).'
+        )
+      }
+      throw new Error(`Gemini returned empty content. finishReason: ${finishReason ?? 'unknown'}`)
     }
 
     return {

@@ -24,6 +24,24 @@ import { runSeoReviewer } from './roles/seo-reviewer'
 import { runDuplicateChecker } from './roles/duplicate-checker'
 import { evaluateRuleEngine, loadRuleConfig } from './rule-engine'
 
+// ─── Job lifecycle constants ─────────────────────────────────────────────────
+// A job's lease must be refreshed on every stage transition. Terminal states
+// clear the lease. When a lease expires while the job is still in an in-progress
+// state, the Recovery Cycle treats it as stuck and requeues/dead-letters it.
+export const DEFAULT_MAX_ATTEMPTS = 3
+export const LEASE_DURATION_MS = 20 * 60 * 1000
+
+export const IN_PROGRESS_JOB_STATUSES: AiJobStatus[] = [
+  'collecting', 'collected', 'writing', 'written',
+  'fact_checking', 'fact_checked', 'image_reviewing', 'image_reviewed',
+  'seo_reviewing', 'seo_reviewed', 'duplicate_checking', 'duplicate_checked',
+  'rule_checking', 'retrying',
+]
+
+const TERMINAL_JOB_STATUSES: AiJobStatus[] = [
+  'published', 'held', 'rejected', 'failed', 'dead_letter',
+]
+
 // ─── Supabase helpers ──────────────────────────────────────────────────────
 
 function getSupabaseHeaders() {
@@ -63,10 +81,10 @@ async function supabaseInsert<T>(table: string, data: Record<string, unknown>): 
 async function createJob(
   source: NewsSource,
   item: ParsedFeedItem
-): Promise<string> {
+): Promise<string | null> {
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
-  await supabaseInsert('ai_jobs', {
+  const inserted = await supabaseInsert('ai_jobs', {
     id,
     source_id: source.id,
     source_url: item.link,
@@ -74,19 +92,55 @@ async function createJob(
     raw_description: item.description?.slice(0, 1000),
     status: 'queued',
     attempt: 1,
+    max_attempts: DEFAULT_MAX_ATTEMPTS,
+    lease_expires_at: new Date(Date.now() + LEASE_DURATION_MS).toISOString(),
     created_at: now,
     updated_at: now,
     started_at: now,
   })
-  return id
+  return inserted ? id : null
 }
 
 async function updateJobStatus(jobId: string, status: AiJobStatus, extra: Record<string, unknown> = {}) {
-  await supabasePatch('ai_jobs', jobId, {
+  const patch: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
     ...extra,
-  })
+  }
+  // Refresh the lease on every in-progress transition; clear it on terminal states.
+  if (IN_PROGRESS_JOB_STATUSES.includes(status)) {
+    patch.lease_expires_at = new Date(Date.now() + LEASE_DURATION_MS).toISOString()
+  } else if (TERMINAL_JOB_STATUSES.includes(status)) {
+    patch.lease_expires_at = null
+  }
+  await supabasePatch('ai_jobs', jobId, patch)
+}
+
+/**
+ * Reads the current attempt/max_attempts for a job (used by the failure handler
+ * to decide between retry and dead-letter).
+ */
+async function getJobAttemptInfo(jobId: string): Promise<{ attempt: number; maxAttempts: number }> {
+  const cfg = getSupabaseHeaders()
+  if (!cfg) return { attempt: 1, maxAttempts: DEFAULT_MAX_ATTEMPTS }
+  try {
+    const res = await fetch(
+      `${cfg.url}/rest/v1/ai_jobs?id=eq.${encodeURIComponent(jobId)}&select=attempt,max_attempts&limit=1`,
+      { headers: cfg.headers, cache: 'no-store' }
+    )
+    if (res.ok) {
+      const rows = await res.json() as Record<string, unknown>[]
+      if (rows[0]) {
+        return {
+          attempt: Number(rows[0].attempt) > 0 ? Number(rows[0].attempt) : 1,
+          maxAttempts: Number(rows[0].max_attempts) > 0 ? Number(rows[0].max_attempts) : DEFAULT_MAX_ATTEMPTS,
+        }
+      }
+    }
+  } catch {
+    // fall through to defaults
+  }
+  return { attempt: 1, maxAttempts: DEFAULT_MAX_ATTEMPTS }
 }
 
 async function createPipelineLog(log: Omit<AiPipelineLog, 'id' | 'createdAt'>) {
@@ -219,18 +273,26 @@ export interface PipelineResult {
   decision?: string
   reasons?: string[]
   error?: string
+  attempt?: number
+  maxAttempts?: number
 }
 
 /**
  * Run the full AI pipeline for one RSS feed item.
  * Does NOT throw — captures all errors and returns a result object.
+ *
+ * When `options.jobId` is provided the pipeline reuses that existing ai_jobs
+ * record (used by the Recovery Cycle to re-run failed/stuck jobs).
  */
 export async function runPipeline(
   item: ParsedFeedItem,
-  source: NewsSource
+  source: NewsSource,
+  options: { jobId?: string } = {}
 ): Promise<PipelineResult> {
-  // Create job record
-  const jobId = await createJob(source, item).catch(() => crypto.randomUUID())
+  // Reuse the existing job (retry/recovery path) or create a fresh one.
+  // If the ai_jobs insert fails (no Supabase configured) fall back to a UUID
+  // so the rest of the pipeline is still observable via logs.
+  const jobId = options.jobId ?? (await createJob(source, item).catch(() => null)) ?? crypto.randomUUID()
 
   try {
     const config = await loadRuleConfig()
@@ -332,8 +394,25 @@ export async function runPipeline(
 
     // ── Stage 8: Act on Rule Engine decision ───────────────────────────────
     if (ruleResult.decision === 'PUBLISH') {
-      const approvedImageUrl = imageReviewed.approvedImageUrl
+      // Never attach an image that failed the Image Reviewer threshold.
+      const approvedImageUrl = ruleResult.imageApproved ? imageReviewed.approvedImageUrl : undefined
       const articleId = await publishArticle(jobId, collected, written, approvedImageUrl, source, item, 'published')
+
+      if (!articleId) {
+        // Database insert failed — the job must NOT be marked published.
+        await updateJobStatus(jobId, 'failed', {
+          rule_engine_result: ruleResult,
+          error: 'Article insert failed — job NOT marked published (recovery cycle will requeue).',
+          completed_at: new Date().toISOString(),
+        })
+        return {
+          jobId,
+          sourceUrl: item.link,
+          status: 'failed',
+          decision: 'PUBLISH',
+          error: 'Article insert failed (no article id returned).',
+        }
+      }
 
       await updateJobStatus(jobId, 'published', {
         rule_engine_result: ruleResult,
@@ -345,13 +424,29 @@ export async function runPipeline(
         jobId,
         sourceUrl: item.link,
         status: 'published',
-        articleId: articleId ?? undefined,
+        articleId,
         decision: 'PUBLISH',
         reasons: ruleResult.reasons,
       }
     } else if (ruleResult.decision === 'HOLD') {
-      const approvedImageUrl = imageReviewed.approvedImageUrl
+      const approvedImageUrl = ruleResult.imageApproved ? imageReviewed.approvedImageUrl : undefined
       const articleId = await publishArticle(jobId, collected, written, approvedImageUrl, source, item, 'draft')
+
+      if (!articleId) {
+        // Draft insert failed — job must NOT be marked held with no article.
+        await updateJobStatus(jobId, 'failed', {
+          rule_engine_result: ruleResult,
+          error: 'Draft insert failed — job NOT marked held (recovery cycle will requeue).',
+          completed_at: new Date().toISOString(),
+        })
+        return {
+          jobId,
+          sourceUrl: item.link,
+          status: 'failed',
+          decision: 'HOLD',
+          error: 'Draft insert failed (no article id returned).',
+        }
+      }
 
       await updateJobStatus(jobId, 'held', {
         rule_engine_result: ruleResult,
@@ -363,7 +458,7 @@ export async function runPipeline(
         jobId,
         sourceUrl: item.link,
         status: 'held',
-        articleId: articleId ?? undefined,
+        articleId,
         decision: 'HOLD',
         reasons: ruleResult.reasons,
       }
@@ -383,10 +478,23 @@ export async function runPipeline(
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    await updateJobStatus(jobId, 'failed', {
-      error: errMsg.slice(0, 1000),
+    const { attempt, maxAttempts } = await getJobAttemptInfo(jobId)
+
+    // ── Job-level retry: leave a retryable failure as 'failed'. The Recovery
+    //    Cycle requeues it with exponential backoff until maxAttempts is hit.
+    if (attempt < maxAttempts) {
+      await updateJobStatus(jobId, 'failed', {
+        error: `[attempt ${attempt}/${maxAttempts}] ${errMsg.slice(0, 900)}`,
+        completed_at: new Date().toISOString(),
+      }).catch(() => undefined)
+      return { jobId, sourceUrl: item.link, status: 'failed', error: errMsg, attempt, maxAttempts }
+    }
+
+    // ── Dead-letter: all attempts exhausted — never auto-retry again.
+    await updateJobStatus(jobId, 'dead_letter', {
+      error: `[dead-lettered after ${attempt}/${maxAttempts} attempts] ${errMsg.slice(0, 900)}`,
       completed_at: new Date().toISOString(),
     }).catch(() => undefined)
-    return { jobId, sourceUrl: item.link, status: 'failed', error: errMsg }
+    return { jobId, sourceUrl: item.link, status: 'dead_letter', error: errMsg, attempt, maxAttempts }
   }
 }

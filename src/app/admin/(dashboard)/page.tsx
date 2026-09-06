@@ -72,6 +72,13 @@ export default async function AdminDashboardPage() {
               <span>নতুন সংবাদ লিখুন</span>
             </Link>
             <Link
+              href="/admin/ai"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-bold transition-all border border-purple-200"
+            >
+              <span>⚡</span>
+              <span>AI ইঞ্জিন</span>
+            </Link>
+            <Link
               href="/admin/ai-drafts"
               className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200"
             >

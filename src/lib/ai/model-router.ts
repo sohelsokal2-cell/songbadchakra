@@ -164,7 +164,8 @@ async function fetchKeyData(
 
 /**
  * Env-variable-based fallback when DB is not available.
- * Prioritizes Gemini, then Groq.
+ * Uses only models verified to be currently available (2026-09).
+ * Priority: Gemini 3.6 Flash → OpenRouter Llama 3.3 70B → Groq qwen3.6-27b
  */
 function buildFallbackModels(roleName: AiRoleName): AiRoleModel[] {
   const models: AiRoleModel[] = []
@@ -180,14 +181,29 @@ function buildFallbackModels(roleName: AiRoleName): AiRoleModel[] {
     models.push({
       ...base,
       id: `fallback-gemini-${roleName}`,
-      modelId: 'gemini-1.5-flash',
+      modelId: 'gemini-3.6-flash',
       priority: 1,
-      timeoutMs: 30000,
+      timeoutMs: 45000,
       providerName: 'gemini',
-      modelName: 'gemini-1.5-flash',
+      modelName: 'gemini-3.6-flash',
       apiStyle: 'gemini',
       baseUrl: 'https://generativelanguage.googleapis.com',
       keyLabel: 'GEMINI_API_KEY',
+    })
+  }
+
+  if (process.env.OPENROUTER_API_KEY) {
+    models.push({
+      ...base,
+      id: `fallback-openrouter-${roleName}`,
+      modelId: 'meta-llama/llama-3.3-70b-instruct',
+      priority: 2,
+      timeoutMs: 45000,
+      providerName: 'openrouter',
+      modelName: 'meta-llama/llama-3.3-70b-instruct',
+      apiStyle: 'openai',
+      baseUrl: 'https://openrouter.ai/api',
+      keyLabel: 'OPENROUTER_API_KEY',
     })
   }
 
@@ -195,11 +211,11 @@ function buildFallbackModels(roleName: AiRoleName): AiRoleModel[] {
     models.push({
       ...base,
       id: `fallback-groq-${roleName}`,
-      modelId: 'llama-3.3-70b-versatile',
-      priority: 2,
+      modelId: 'qwen/qwen3.6-27b',
+      priority: 3,
       timeoutMs: 30000,
       providerName: 'groq',
-      modelName: 'llama-3.3-70b-versatile',
+      modelName: 'qwen/qwen3.6-27b',
       apiStyle: 'openai',
       baseUrl: 'https://api.groq.com/openai',
       keyLabel: 'GROQ_API_KEY',
