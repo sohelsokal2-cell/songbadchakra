@@ -12,7 +12,8 @@
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare deploy",
-    "ingest:rss": "node scripts/run-rss-ingestion.mjs"
+    "ingest:rss": "node scripts/run-rss-ingestion.mjs",
+    "test:smoke": "node scripts/smoke-test-supabase.mjs"
   },
   "dependencies": {
     "next": "16.3.4",
