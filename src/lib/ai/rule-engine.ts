@@ -35,12 +35,25 @@ export interface RuleEngineInput {
 
 /**
  * Load Rule Engine configuration from Supabase, or return defaults.
+ * Cached for a short TTL — the config is read by the cron route, every
+ * ingestSource() call and the recovery cycle; caching keeps a single
+ * invocation well under Cloudflare's subrequest limit.
  */
+const RULE_CONFIG_TTL_MS = 60_000
+let ruleConfigCache: { config: AiRuleConfig; at: number } | null = null
+
+export function clearRuleConfigCache(): void {
+  ruleConfigCache = null
+}
+
 export async function loadRuleConfig(): Promise<AiRuleConfig> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (supabaseUrl && supabaseKey) {
+    if (ruleConfigCache && Date.now() - ruleConfigCache.at < RULE_CONFIG_TTL_MS) {
+      return ruleConfigCache.config
+    }
     try {
       const res = await fetch(
         `${supabaseUrl}/rest/v1/ai_rule_config?id=eq.default&limit=1`,
@@ -56,7 +69,7 @@ export async function loadRuleConfig(): Promise<AiRuleConfig> {
         const rows = await res.json() as Record<string, unknown>[]
         if (rows.length > 0) {
           const r = rows[0]
-          return {
+          const config: AiRuleConfig = {
             id: 'default',
             factCheckerMin: Number(r.fact_checker_min ?? 90),
             seoMin: Number(r.seo_min ?? 80),
@@ -67,6 +80,8 @@ export async function loadRuleConfig(): Promise<AiRuleConfig> {
             maxItemsPerRun: Number(r.max_items_per_run ?? 10),
             updatedAt: String(r.updated_at ?? ''),
           }
+          ruleConfigCache = { config, at: Date.now() }
+          return config
         }
       }
     } catch {

@@ -126,7 +126,7 @@ export async function runFactChecker(
     const { response } = await callWithFallback(
       'fact_checker',
       [systemMsg, userMsg],
-      { temperature: 0.1, maxTokens: 2000, responseFormat: 'json' }
+      { temperature: 0.1, maxTokens: 900, responseFormat: 'json' }
     )
 
     const result = parseFactCheckerOutput(response.text, minimumScore)

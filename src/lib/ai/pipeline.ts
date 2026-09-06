@@ -78,9 +78,10 @@ async function supabaseInsert<T>(table: string, data: Record<string, unknown>): 
 
 // ─── Job management ────────────────────────────────────────────────────────
 
-async function createJob(
+async function createJobRecord(
   source: NewsSource,
-  item: ParsedFeedItem
+  item: ParsedFeedItem,
+  opts: { readyImmediately?: boolean } = {}
 ): Promise<string | null> {
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
@@ -93,12 +94,51 @@ async function createJob(
     status: 'queued',
     attempt: 1,
     max_attempts: DEFAULT_MAX_ATTEMPTS,
-    lease_expires_at: new Date(Date.now() + LEASE_DURATION_MS).toISOString(),
+    // `null` lease = immediately claimable by processQueuedJobs; otherwise the
+    // lease blocks re-processing until it expires (protects the inline run).
+    lease_expires_at: opts.readyImmediately
+      ? null
+      : new Date(Date.now() + LEASE_DURATION_MS).toISOString(),
     created_at: now,
     updated_at: now,
     started_at: now,
   })
   return inserted ? id : null
+}
+
+async function createJob(
+  source: NewsSource,
+  item: ParsedFeedItem
+): Promise<string | null> {
+  return createJobRecord(source, item)
+}
+
+/**
+ * Enqueue-only path (subrequest budget): stores the raw feed item as a queued
+ * job WITHOUT running the pipeline. The job-recovery cycle picks it up in a
+ * later invocation, keeping every invocation under Cloudflare's subrequest cap.
+ */
+export async function createQueuedJob(
+  source: NewsSource,
+  item: ParsedFeedItem
+): Promise<boolean> {
+  return (await createJobRecord(source, item, { readyImmediately: true })) !== null
+}
+
+const IS_CLOUDFLARE_WORKERS =
+  typeof navigator !== 'undefined' && navigator.userAgent === 'Cloudflare-Workers'
+
+/**
+ * Max feed items that may go through the FULL pipeline in a single invocation.
+ * Each pipeline run costs ~15-25 subrequests (AI provider calls + Supabase
+ * status patches). Cloudflare Workers allow 50 subrequests/invocation on the
+ * free plan (1000 on paid), so the budget is small there. Override with the
+ * MAX_PIPELINE_ITEMS_PER_RUN env var.
+ */
+export function getPipelineItemsPerRun(): number {
+  const raw = Number(process.env.MAX_PIPELINE_ITEMS_PER_RUN)
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw)
+  return IS_CLOUDFLARE_WORKERS ? 1 : 10
 }
 
 async function updateJobStatus(jobId: string, status: AiJobStatus, extra: Record<string, unknown> = {}) {
@@ -143,8 +183,15 @@ async function getJobAttemptInfo(jobId: string): Promise<{ attempt: number; maxA
   return { attempt: 1, maxAttempts: DEFAULT_MAX_ATTEMPTS }
 }
 
-async function createPipelineLog(log: Omit<AiPipelineLog, 'id' | 'createdAt'>) {
-  await supabaseInsert('ai_pipeline_logs', {
+/**
+ * Per-run pipeline log buffer. Each run produces ~6 log rows; batching them
+ * into ONE insert keeps a pipeline run well under Cloudflare's 50-subrequest
+ * limit (6 individual inserts used to be 6 subrequests).
+ */
+type PipelineLogInput = Omit<AiPipelineLog, 'id' | 'createdAt'>
+
+function buildPipelineLogRow(log: PipelineLogInput) {
+  return {
     id: crypto.randomUUID(),
     job_id: log.jobId,
     role: log.role,
@@ -160,7 +207,23 @@ async function createPipelineLog(log: Omit<AiPipelineLog, 'id' | 'createdAt'>) {
     latency_ms: log.latencyMs ?? null,
     error: log.error ?? null,
     created_at: new Date().toISOString(),
-  })
+  }
+}
+
+async function flushPipelineLogs(logs: PipelineLogInput[]): Promise<void> {
+  if (logs.length === 0) return
+  const cfg = getSupabaseHeaders()
+  if (!cfg) return
+  try {
+    await fetch(`${cfg.url}/rest/v1/ai_pipeline_logs`, {
+      method: 'POST',
+      headers: { ...cfg.headers, Prefer: 'return=minimal' },
+      body: JSON.stringify(logs.map(buildPipelineLogRow)),
+      cache: 'no-store',
+    })
+  } catch {
+    // best-effort — logging must never fail the pipeline
+  }
 }
 
 // ─── Article publication ───────────────────────────────────────────────────
@@ -293,14 +356,14 @@ export async function runPipeline(
   // If the ai_jobs insert fails (no Supabase configured) fall back to a UUID
   // so the rest of the pipeline is still observable via logs.
   const jobId = options.jobId ?? (await createJob(source, item).catch(() => null)) ?? crypto.randomUUID()
+  const pipelineLogs: PipelineLogInput[] = []
 
   try {
     const config = await loadRuleConfig()
 
     // ── Stage 1: Collector ─────────────────────────────────────────────────
-    await updateJobStatus(jobId, 'collecting')
     const collected = runCollector(item, source)
-    await createPipelineLog({
+    pipelineLogs.push({
       jobId, role: 'collector', status: collected.status === 'PASS' ? 'success' : 'failed',
       decision: collected.status, attempt: 1,
     })
@@ -315,9 +378,8 @@ export async function runPipeline(
     await updateJobStatus(jobId, 'collected', { collector_result: collected })
 
     // ── Stage 2: Writer ────────────────────────────────────────────────────
-    await updateJobStatus(jobId, 'writing')
     const written = await runWriter(collected)
-    await createPipelineLog({
+    pipelineLogs.push({
       jobId, role: 'writer', provider: written.provider, model: written.model,
       status: written.status === 'PASS' ? 'success' : 'failed',
       score: written.score, decision: written.status,
@@ -335,9 +397,8 @@ export async function runPipeline(
     await updateJobStatus(jobId, 'written', { writer_result: written })
 
     // ── Stage 3: Fact Checker ──────────────────────────────────────────────
-    await updateJobStatus(jobId, 'fact_checking')
     const factChecked = await runFactChecker(written, collected, config.factCheckerMin)
-    await createPipelineLog({
+    pipelineLogs.push({
       jobId, role: 'fact_checker', provider: factChecked.provider, model: factChecked.model,
       status: factChecked.status === 'PASS' ? 'success' : 'failed',
       score: factChecked.score, decision: factChecked.decision,
@@ -347,9 +408,8 @@ export async function runPipeline(
     await updateJobStatus(jobId, 'fact_checked', { fact_checker_result: factChecked })
 
     // ── Stage 4: Image Reviewer ────────────────────────────────────────────
-    await updateJobStatus(jobId, 'image_reviewing')
     const imageReviewed = await runImageReviewer(collected, written, config.imageMin)
-    await createPipelineLog({
+    pipelineLogs.push({
       jobId, role: 'image_reviewer', provider: imageReviewed.provider,
       status: imageReviewed.status === 'PASS' ? 'success' : 'failed',
       score: imageReviewed.score, decision: imageReviewed.decision,
@@ -358,9 +418,8 @@ export async function runPipeline(
     await updateJobStatus(jobId, 'image_reviewed', { image_reviewer_result: imageReviewed })
 
     // ── Stage 5: SEO Reviewer ──────────────────────────────────────────────
-    await updateJobStatus(jobId, 'seo_reviewing')
     const seoReviewed = await runSeoReviewer(written, config.seoMin)
-    await createPipelineLog({
+    pipelineLogs.push({
       jobId, role: 'seo_reviewer', provider: seoReviewed.provider, model: seoReviewed.model,
       status: seoReviewed.status === 'PASS' ? 'success' : 'failed',
       score: seoReviewed.score, decision: seoReviewed.decision,
@@ -370,9 +429,8 @@ export async function runPipeline(
     await updateJobStatus(jobId, 'seo_reviewed', { seo_reviewer_result: seoReviewed })
 
     // ── Stage 6: Duplicate Checker ─────────────────────────────────────────
-    await updateJobStatus(jobId, 'duplicate_checking')
     const dupChecked = await runDuplicateChecker(collected, written)
-    await createPipelineLog({
+    pipelineLogs.push({
       jobId, role: 'duplicate_checker',
       status: dupChecked.status === 'PASS' ? 'success' : 'failed',
       score: dupChecked.similarity, decision: dupChecked.decision,
@@ -496,5 +554,8 @@ export async function runPipeline(
       completed_at: new Date().toISOString(),
     }).catch(() => undefined)
     return { jobId, sourceUrl: item.link, status: 'dead_letter', error: errMsg, attempt, maxAttempts }
+  } finally {
+    // Batched per-role logs — single insert, best-effort.
+    await flushPipelineLogs(pipelineLogs)
   }
 }

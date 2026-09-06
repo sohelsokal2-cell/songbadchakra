@@ -2,18 +2,20 @@ import { NextResponse } from 'next/server'
 import { getAllSources, getSourceById } from '@/lib/news-repository'
 import { ingestSource, type IngestionResult } from '@/lib/rss-ingestion'
 import { runAutomationCycle } from '@/lib/ai/job-recovery'
+import { getPipelineItemsPerRun } from '@/lib/ai/pipeline'
 import { verifyCronAuth } from '@/lib/cron-auth'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * Runs the self-healing automation cycle (stale-job recovery, retries,
- * dead-letter processing and queued-job execution) before fresh ingestion.
+ * dead-letter processing and queued-job execution) BEFORE fresh ingestion —
+ * recovery is guaranteed to run even when ingestion later hits errors.
  * Recovery is best-effort — failures never abort the ingestion pass.
  */
-async function runRecovery() {
+async function runRecovery(queuedLimit?: number) {
   try {
-    return await runAutomationCycle()
+    return await runAutomationCycle({ queuedLimit })
   } catch (err) {
     return {
       recoveredStale: 0,
@@ -29,6 +31,25 @@ async function runRecovery() {
   }
 }
 
+/**
+ * Builds a synthetic failed IngestionResult so one broken source never aborts
+ * the remaining sources (and the response still reports totals).
+ */
+function failedSourceResult(sourceId: string, sourceName: string, error: unknown): IngestionResult {
+  const message = error instanceof Error ? error.message : String(error)
+  return {
+    sourceId,
+    sourceName,
+    fetchedCount: 0,
+    ingestedCount: 0,
+    skippedCount: 0,
+    failedCount: 1,
+    pipelineCount: 0,
+    queuedCount: 0,
+    errors: [`Source error: ${message}`],
+  }
+}
+
 async function handleIngest(request: Request, sourceId?: string) {
   if (!verifyCronAuth(request)) {
     return NextResponse.json(
@@ -40,20 +61,37 @@ async function handleIngest(request: Request, sourceId?: string) {
   try {
     const results: IngestionResult[] = []
 
+    // Self-healing first: stale jobs are recovered and queued jobs processed
+    // within the shared per-invocation subrequest budget. Whatever recovery
+    // consumed is subtracted from the ingestion pipeline budget below.
+    const budget = getPipelineItemsPerRun()
+    const recovery = await runRecovery(budget)
+    let remainingBudget = Math.max(0, budget - (recovery.processedQueued ?? 0))
+
     if (sourceId) {
       const source = await getSourceById(sourceId)
       if (!source) {
         return NextResponse.json({ error: 'সোর্স পাওয়া যায়নি।' }, { status: 404 })
       }
-      const res = await ingestSource(source)
-      results.push(res)
+      try {
+        const res = await ingestSource(source, { maxPipelineItems: remainingBudget })
+        remainingBudget -= res.pipelineCount
+        results.push(res)
+      } catch (err) {
+        results.push(failedSourceResult(source.id, source.name, err))
+      }
     } else {
       const allSources = await getAllSources()
       const activeSources = allSources.filter((s) => s.isActive)
 
       for (const source of activeSources) {
-        const res = await ingestSource(source)
-        results.push(res)
+        try {
+          const res = await ingestSource(source, { maxPipelineItems: Math.max(0, remainingBudget) })
+          remainingBudget -= res.pipelineCount
+          results.push(res)
+        } catch (err) {
+          results.push(failedSourceResult(source.id, source.name, err))
+        }
       }
     }
 
@@ -61,8 +99,7 @@ async function handleIngest(request: Request, sourceId?: string) {
     const totalIngested = results.reduce((acc, r) => acc + r.ingestedCount, 0)
     const totalSkipped = results.reduce((acc, r) => acc + r.skippedCount, 0)
     const totalFailed = results.reduce((acc, r) => acc + r.failedCount, 0)
-
-    const recovery = await runRecovery()
+    const totalQueued = results.reduce((acc, r) => acc + r.queuedCount, 0)
 
     return NextResponse.json(
       {
@@ -73,6 +110,8 @@ async function handleIngest(request: Request, sourceId?: string) {
           totalIngested,
           totalSkipped,
           totalFailed,
+          totalQueued,
+          pipelineBudget: budget,
         },
         results,
         recovery,

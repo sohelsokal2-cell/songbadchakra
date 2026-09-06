@@ -136,7 +136,7 @@ export async function runSeoReviewer(
     const { response } = await callWithFallback(
       'seo_reviewer',
       [systemMsg, userMsg],
-      { temperature: 0.1, maxTokens: 1000, responseFormat: 'json' }
+      { temperature: 0.1, maxTokens: 900, responseFormat: 'json' }
     )
 
     const result = parseSeoOutput(response.text, minimumScore)

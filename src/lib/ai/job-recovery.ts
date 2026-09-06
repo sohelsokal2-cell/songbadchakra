@@ -309,8 +309,13 @@ export async function claimQueuedJob(id: string): Promise<boolean> {
 }
 
 export async function processQueuedJobs(limit?: number): Promise<QueuedResult> {
+  const { getPipelineItemsPerRun } = await import('./pipeline')
   const ruleConfig = await loadRuleConfig()
-  const batchSize = Math.max(1, Math.min(limit ?? ruleConfig.maxItemsPerRun, RECOVERY_MAX_JOBS_PER_CYCLE))
+  // Never exceed the per-invocation subrequest budget when auto-running.
+  const batchSize = Math.max(
+    1,
+    Math.min(limit ?? Math.min(ruleConfig.maxItemsPerRun, getPipelineItemsPerRun()), RECOVERY_MAX_JOBS_PER_CYCLE)
+  )
   const queued = await fetchJobsByStatus(['queued'], batchSize)
   // Only run jobs whose lease is absent or already expired (backoff honored).
   const ready = queued.filter((job) => {
@@ -366,11 +371,19 @@ export interface AutomationCycleSummary {
   timestamp: string
 }
 
-export async function runAutomationCycle(): Promise<AutomationCycleSummary> {
+export interface AutomationCycleOptions {
+  /**
+   * Cap for queued jobs processed through the pipeline in this cycle. Used by
+   * the cron route to share one subrequest budget between recovery+ingestion.
+   */
+  queuedLimit?: number
+}
+
+export async function runAutomationCycle(options?: AutomationCycleOptions): Promise<AutomationCycleSummary> {
   const recoveredStale = await recoverStaleJobs()
   const requeuedFailed = await requeueFailedJobs()
   const deadLettered = await deadLetterExhaustedJobs()
-  const queuedRun = await processQueuedJobs()
+  const queuedRun = await processQueuedJobs(options?.queuedLimit)
   const deadLetterQueue = await countDeadLetterJobs()
 
   return {

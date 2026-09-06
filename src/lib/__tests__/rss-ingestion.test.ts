@@ -9,6 +9,7 @@ import {
   processItemWithAi,
   ingestSource,
   getMaxItemsToProcess,
+  clearDedupeCache,
 } from '@/lib/rss-ingestion'
 import { getAllArticles, getAllAiLogs } from '@/lib/news-repository'
 import type { NewsSource } from '@/types/news'
@@ -172,6 +173,7 @@ describe('RSS Ingestion & Sanitization', () => {
       process.env.PORTAL_DATA_PATH = RSS_TEST_DATA_PATH
       delete process.env.NEXT_PUBLIC_SUPABASE_URL
       delete process.env.SUPABASE_SERVICE_ROLE_KEY
+      clearDedupeCache()
 
       await fs.mkdir(path.resolve('.data'), { recursive: true })
       await fs.writeFile(

@@ -22,6 +22,65 @@ import { callGemini } from './providers/gemini'
 import { callGroq, callOpenRouter, callNvidia } from './providers/openai-compat'
 
 /**
+ * Shared model catalog cached for a short TTL.
+ *
+ * Each pipeline run resolves models for ~5 roles. Without caching that costs
+ * 4 Supabase subrequests PER ROLE (20/run) — enough on its own to blow
+ * Cloudflare Workers' 50-subrequest limit. The catalog caches the role-model
+ * assignments, role IDs, models+providers and key labels once per TTL window
+ * so all role lookups share the same 4 fetches.
+ */
+interface RouterCatalog {
+  roleModels: Record<string, unknown>[]
+  roleIdByName: Record<string, string>
+  models: Awaited<ReturnType<typeof fetchModelData>>
+  keys: Awaited<ReturnType<typeof fetchKeyData>>
+}
+
+const CATALOG_TTL_MS = 60_000
+let catalogCache: { catalog: RouterCatalog; at: number } | null = null
+
+async function loadCatalog(
+  supabaseUrl: string,
+  supabaseKey: string
+): Promise<RouterCatalog> {
+  if (catalogCache && Date.now() - catalogCache.at < CATALOG_TTL_MS) {
+    return catalogCache.catalog
+  }
+
+  const [rmRes, rolesRes] = await Promise.all([
+    fetch(
+      `${supabaseUrl}/rest/v1/ai_role_models?select=*&is_active=eq.true&order=priority.asc`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }, cache: 'no-store' }
+    ),
+    fetch(
+      `${supabaseUrl}/rest/v1/ai_roles?select=id,role_name`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` }, cache: 'no-store' }
+    ),
+  ])
+  if (!rmRes.ok) throw new Error(`ai_role_models fetch failed: ${rmRes.status}`)
+  const allRoleModels = await rmRes.json() as Record<string, unknown>[]
+  const roleRows = rolesRes.ok ? (await rolesRes.json() as Record<string, unknown>[]) : []
+  const roleIdByName: Record<string, string> = {}
+  for (const r of roleRows) roleIdByName[String(r.role_name)] = String(r.id)
+
+  // Fetch the full (small) model & key catalogs once, shared by all roles.
+  const [models, keys] = await Promise.all([
+    fetchModelData(supabaseUrl, supabaseKey, null),
+    fetchKeyData(supabaseUrl, supabaseKey, null),
+  ])
+
+  const catalog: RouterCatalog = { roleModels: allRoleModels, roleIdByName, models, keys }
+  catalogCache = { catalog, at: Date.now() }
+  return catalog
+}
+
+/** Test/ops helper: drops the cached model catalog. */
+export function clearModelCatalogCache(): void {
+  catalogCache = null
+}
+
+/**
  * Load ordered role-model assignments from Supabase (or env fallback).
  * Returns them sorted by priority ascending (1 = primary).
  */
@@ -31,50 +90,17 @@ export async function loadRoleModels(roleName: AiRoleName): Promise<AiRoleModel[
 
   if (supabaseUrl && supabaseKey) {
     try {
-      // Fetch active role model assignments sorted by priority
-      const rmRes = await fetch(
-        `${supabaseUrl}/rest/v1/ai_role_models?select=*&is_active=eq.true&order=priority.asc`,
-        {
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-          },
-          cache: 'no-store',
-        }
-      )
-      if (!rmRes.ok) throw new Error(`ai_role_models fetch failed: ${rmRes.status}`)
-      const allRoleModels = await rmRes.json() as Record<string, unknown>[]
+      const catalog = await loadCatalog(supabaseUrl, supabaseKey)
 
-      // Get role ID for this role name
-      const rolesRes = await fetch(
-        `${supabaseUrl}/rest/v1/ai_roles?select=id,role_name&role_name=eq.${encodeURIComponent(roleName)}`,
-        {
-          headers: {
-            apikey: supabaseKey,
-            Authorization: `Bearer ${supabaseKey}`,
-          },
-          cache: 'no-store',
-        }
-      )
-      const roles = rolesRes.ok ? (await rolesRes.json() as Record<string, unknown>[]) : []
-      const roleId = roles[0]?.id as string | undefined
+      const roleId = catalog.roleIdByName[roleName]
       if (!roleId) return buildFallbackModels(roleName)
 
-      const filtered = allRoleModels.filter((rm) => rm.role_id === roleId)
+      const filtered = catalog.roleModels.filter((rm) => rm.role_id === roleId)
       if (filtered.length === 0) return buildFallbackModels(roleName)
 
-      // Enrich with model/provider/key info
-      const modelIds = [...new Set(filtered.map((rm) => rm.model_id as string))]
-      const keyIds = [...new Set(filtered.map((rm) => rm.api_key_label_id as string).filter(Boolean))]
-
-      const [modelsData, keysData] = await Promise.all([
-        fetchModelData(supabaseUrl, supabaseKey, modelIds),
-        fetchKeyData(supabaseUrl, supabaseKey, keyIds),
-      ])
-
       return filtered.map((rm) => {
-        const m = modelsData.find((x) => x.id === rm.model_id)
-        const k = keysData.find((x) => x.id === rm.api_key_label_id)
+        const m = catalog.models.find((x) => x.id === rm.model_id)
+        const k = catalog.keys.find((x) => x.id === rm.api_key_label_id)
         return {
           id: String(rm.id),
           roleId: String(rm.role_id),
@@ -106,7 +132,7 @@ export async function loadRoleModels(roleName: AiRoleName): Promise<AiRoleModel[
 async function fetchModelData(
   supabaseUrl: string,
   supabaseKey: string,
-  modelIds: string[]
+  modelIds: string[] | null
 ): Promise<{
   id: string
   modelName: string
@@ -116,10 +142,11 @@ async function fetchModelData(
   providerName: string
   providerDisplayName: string
 }[]> {
-  if (modelIds.length === 0) return []
-  const ids = modelIds.map((id) => encodeURIComponent(id)).join(',')
+  const idsParam = modelIds && modelIds.length > 0
+    ? `&id=in.(${modelIds.map((id) => encodeURIComponent(id)).join(',')})`
+    : ''
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/ai_models?select=*,ai_providers(*)&id=in.(${ids})`,
+    `${supabaseUrl}/rest/v1/ai_models?select=*,ai_providers(*)${idsParam}`,
     {
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
       cache: 'no-store',
@@ -144,12 +171,13 @@ async function fetchModelData(
 async function fetchKeyData(
   supabaseUrl: string,
   supabaseKey: string,
-  keyIds: string[]
+  keyIds: string[] | null
 ): Promise<{ id: string; label: string }[]> {
-  if (keyIds.length === 0) return []
-  const ids = keyIds.map((id) => encodeURIComponent(id)).join(',')
+  const idsParam = keyIds && keyIds.length > 0
+    ? `&id=in.(${keyIds.map((id) => encodeURIComponent(id)).join(',')})`
+    : ''
   const res = await fetch(
-    `${supabaseUrl}/rest/v1/ai_api_key_labels?select=id,label&id=in.(${ids})`,
+    `${supabaseUrl}/rest/v1/ai_api_key_labels?select=id,label${idsParam}`,
     {
       headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
       cache: 'no-store',

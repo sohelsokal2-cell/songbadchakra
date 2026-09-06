@@ -32,6 +32,10 @@ export interface IngestionResult {
   ingestedCount: number
   skippedCount: number
   failedCount: number
+  /** Items that went through the full AI pipeline in this call. */
+  pipelineCount: number
+  /** Items enqueued as queued jobs for a later invocation (subrequest budget). */
+  queuedCount: number
   errors: string[]
 }
 
@@ -329,9 +333,44 @@ export function getMaxItemsToProcess(configMaxItems: number | undefined, fetched
 }
 
 /**
- * Ingest a single RSS/Atom feed source
+ * Dedupe URL cache (TTL 60s) — `getAllArticles({limit:1000})` per source used
+ * to cost one subrequest per source; the cache shares it across the whole
+ * invocation so a multi-source cron stays under Cloudflare's limit.
  */
-export async function ingestSource(source: NewsSource): Promise<IngestionResult> {
+const DEDUPE_TTL_MS = 60_000
+let dedupeCache: { urls: Set<string>; at: number } | null = null
+
+async function getDedupeUrlSet(): Promise<Set<string>> {
+  if (dedupeCache && Date.now() - dedupeCache.at < DEDUPE_TTL_MS) {
+    return dedupeCache.urls
+  }
+  const existing = await getAllArticles({ limit: 1000 })
+  const urls = new Set(
+    existing.articles
+      .map((a) => a.sourceUrl)
+      .filter((url) => url && url !== '#')
+  )
+  dedupeCache = { urls, at: Date.now() }
+  return urls
+}
+
+/** Test/ops helper: drops the dedupe URL cache. */
+export function clearDedupeCache(): void {
+  dedupeCache = null
+}
+
+/**
+ * Ingest a single RSS/Atom feed source
+ *
+ * `options.maxPipelineItems` bounds how many items run through the FULL AI
+ * pipeline in this call (Cloudflare subrequest budget). Excess new items are
+ * stored as queued jobs (`createQueuedJob`) and processed by the job-recovery
+ * cycle in later invocations — nothing is dropped.
+ */
+export async function ingestSource(
+  source: NewsSource,
+  options?: { maxPipelineItems?: number }
+): Promise<IngestionResult> {
   const result: IngestionResult = {
     sourceId: source.id,
     sourceName: source.name,
@@ -339,6 +378,8 @@ export async function ingestSource(source: NewsSource): Promise<IngestionResult>
     ingestedCount: 0,
     skippedCount: 0,
     failedCount: 0,
+    pipelineCount: 0,
+    queuedCount: 0,
     errors: [],
   }
 
@@ -374,17 +415,18 @@ export async function ingestSource(source: NewsSource): Promise<IngestionResult>
       return result
     }
 
-    // 2. Load existing articles to deduplicate by sourceUrl
-    const existing = await getAllArticles({ limit: 1000 })
-    const existingUrls = new Set(
-      existing.articles
-        .map((a) => a.sourceUrl)
-        .filter((url) => url && url !== '#')
-    )
+    // 2. Load existing articles to deduplicate by sourceUrl.
+    //    Cached for a short TTL — every source in one invocation shares the
+    //    same query instead of repeating it (subrequest budget).
+    const existingUrls = await getDedupeUrlSet()
 
     // Respect max_items_per_run from the live Rule Engine config
-    // (fallback 10) so the configured limit is actually effective.
+    // (fallback 10) so the configured limit is actually effective. The FULL
+    // pipeline additionally respects the per-invocation subrequest budget
+    // (`pipelineBudget`) — excess items are captured as queued jobs.
     const ruleConfig = await loadRuleConfig()
+    const { getPipelineItemsPerRun } = await import('@/lib/ai/pipeline')
+    const pipelineBudget = options?.maxPipelineItems ?? getPipelineItemsPerRun()
     const itemsToProcess = items.slice(0, getMaxItemsToProcess(ruleConfig.maxItemsPerRun, items.length))
 
     for (const item of itemsToProcess) {
@@ -394,10 +436,25 @@ export async function ingestSource(source: NewsSource): Promise<IngestionResult>
         continue
       }
 
+      const { runPipeline, createQueuedJob } = await import('@/lib/ai/pipeline')
+
+      // Subrequest budget exhausted → capture the item as a queued job (1
+      // subrequest) for the job-recovery cycle in a later invocation.
+      if (result.pipelineCount >= pipelineBudget) {
+        if (result.queuedCount < 2) {
+          const queued = await createQueuedJob(source, item).catch(() => false)
+          if (queued) {
+            existingUrls.add(item.link)
+            result.queuedCount++
+          }
+        }
+        continue
+      }
+
       try {
         // AI processing via full Phase 10 Pipeline (Collector -> Writer -> Fact-Checker -> Image -> SEO -> Duplicate -> Rule Engine)
-        const { runPipeline } = await import('@/lib/ai/pipeline')
         const pipeResult = await runPipeline(item, source)
+        result.pipelineCount++
 
         if (pipeResult.status === 'published' || pipeResult.status === 'held') {
           existingUrls.add(item.link)

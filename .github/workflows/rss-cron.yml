@@ -13,8 +13,9 @@ jobs:
       - name: Trigger Rule Engine Pipeline via API
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          # Use Vercel URL until custom domain DNS is resolved
-          CRON_API_URL: ${{ secrets.CRON_API_URL || 'https://songbadchakra.vercel.app' }}
+          # Cloudflare Worker is the production target; this fallback applies
+          # only when the CRON_API_URL secret is not set on the repo.
+          CRON_API_URL: ${{ secrets.CRON_API_URL || 'https://songbadchakra.songbadchakra.workers.dev' }}
         run: |
           echo "🚀 Triggering RSS ingestion via Rule Engine API..."
           HTTP_STATUS=$(curl \

@@ -151,7 +151,7 @@ export async function runWriter(collected: CollectorResult): Promise<WriterResul
     const { response, attempts } = await callWithFallback(
       'writer',
       [systemMsg, userMsg],
-      { temperature: 0.2, maxTokens: 3000, responseFormat: 'json' }
+      { temperature: 0.2, maxTokens: 950, responseFormat: 'json' }
     )
 
     const parsed = validateAndParseWriterOutput(response.text, collected)
