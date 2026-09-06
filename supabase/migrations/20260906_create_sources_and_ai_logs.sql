@@ -1,14 +1,18 @@
 -- ==============================================================================
 -- Phase 9: RSS Feeds & AI News Automation Migration
--- Safe & Idempotent (handles pre-existing tables cleanly)
+-- Recreates sources & ai_logs tables with canonical TEXT primary keys
 -- ==============================================================================
 
+-- Drop existing tables to eliminate any schema/type conflicts (e.g. bigint id)
+drop table if exists public.ai_logs cascade;
+drop table if exists public.sources cascade;
+
 -- 1. Sources Table
-create table if not exists public.sources (
+create table public.sources (
   id text primary key,
-  name text not null default '',
-  url text not null default '',
-  feed_url text not null default '',
+  name text not null,
+  url text not null,
+  feed_url text not null unique,
   category text not null default 'bangladesh',
   category_label text not null default 'বাংলাদেশ',
   is_active boolean not null default true,
@@ -19,40 +23,24 @@ create table if not exists public.sources (
   created_at timestamptz not null default now()
 );
 
--- Ensure all required columns exist even if public.sources was pre-existing
-alter table public.sources add column if not exists id text;
-alter table public.sources add column if not exists name text not null default '';
-alter table public.sources add column if not exists url text not null default '';
-alter table public.sources add column if not exists feed_url text not null default '';
-alter table public.sources add column if not exists category text not null default 'bangladesh';
-alter table public.sources add column if not exists category_label text not null default 'বাংলাদেশ';
-alter table public.sources add column if not exists is_active boolean not null default true;
-alter table public.sources add column if not exists fetch_interval_minutes integer not null default 60;
-alter table public.sources add column if not exists last_fetched_at timestamptz;
-alter table public.sources add column if not exists last_status text;
-alter table public.sources add column if not exists error_message text;
-alter table public.sources add column if not exists created_at timestamptz not null default now();
-
-create unique index if not exists idx_sources_feed_url on public.sources(feed_url);
-create index if not exists idx_sources_is_active on public.sources(is_active);
-create index if not exists idx_sources_category on public.sources(category);
+create index idx_sources_is_active on public.sources(is_active);
+create index idx_sources_category on public.sources(category);
 
 alter table public.sources enable row level security;
 
-drop policy if exists "Allow service role full access to sources" on public.sources;
 create policy "Allow service role full access to sources"
   on public.sources for all to service_role
   using (true)
   with check (true);
 
 -- 2. AI & Ingestion Logs Table
-create table if not exists public.ai_logs (
+create table public.ai_logs (
   id text primary key,
   source_id text references public.sources(id) on delete set null,
-  source_url text not null default '',
+  source_url text not null,
   provider text not null default 'gemini',
   model text not null default 'gemini-1.5-flash',
-  status text not null default 'completed',
+  status text not null check (status in ('pending', 'processing', 'completed', 'failed')),
   prompt_tokens integer,
   completion_tokens integer,
   error_message text,
@@ -62,27 +50,12 @@ create table if not exists public.ai_logs (
   created_at timestamptz not null default now()
 );
 
--- Ensure all required columns exist even if public.ai_logs was pre-existing
-alter table public.ai_logs add column if not exists source_id text;
-alter table public.ai_logs add column if not exists source_url text not null default '';
-alter table public.ai_logs add column if not exists provider text not null default 'gemini';
-alter table public.ai_logs add column if not exists model text not null default 'gemini-1.5-flash';
-alter table public.ai_logs add column if not exists status text not null default 'completed';
-alter table public.ai_logs add column if not exists prompt_tokens integer;
-alter table public.ai_logs add column if not exists completion_tokens integer;
-alter table public.ai_logs add column if not exists error_message text;
-alter table public.ai_logs add column if not exists raw_title text;
-alter table public.ai_logs add column if not exists raw_summary text;
-alter table public.ai_logs add column if not exists processed_article_id text;
-alter table public.ai_logs add column if not exists created_at timestamptz not null default now();
-
-create index if not exists idx_ai_logs_created_at on public.ai_logs(created_at desc);
-create index if not exists idx_ai_logs_status on public.ai_logs(status);
-create index if not exists idx_ai_logs_source_url on public.ai_logs(source_url);
+create index idx_ai_logs_created_at on public.ai_logs(created_at desc);
+create index idx_ai_logs_status on public.ai_logs(status);
+create index idx_ai_logs_source_url on public.ai_logs(source_url);
 
 alter table public.ai_logs enable row level security;
 
-drop policy if exists "Allow service role full access to ai_logs" on public.ai_logs;
 create policy "Allow service role full access to ai_logs"
   on public.ai_logs for all to service_role
   using (true)
