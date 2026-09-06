@@ -19,10 +19,22 @@ import {
   createContactMessage,
   markContactMessageRead,
   deleteContactMessage,
+  getAllSources,
+  getSourceById,
+  createSource,
+  updateSource,
+  deleteSource,
+  getAllAiLogs,
+  createAiLog,
+  updateAiLog,
+  getDashboardStats,
 } from '@/lib/news-repository'
 import type { NewsArticle } from '@/types/news'
 
-// Ensure no Supabase config (use local store)
+// Ensure no Supabase config (use isolated local store)
+const TEST_DATA_PATH = path.resolve('.data/portal-data-repo-test.json')
+process.env.PORTAL_DATA_PATH = TEST_DATA_PATH
+
 beforeEach(async () => {
   delete process.env.NEXT_PUBLIC_SUPABASE_URL
   delete process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -30,7 +42,7 @@ beforeEach(async () => {
   // Reset the data file to a clean empty state
   await fs.mkdir(path.resolve('.data'), { recursive: true })
   await fs.writeFile(
-    path.resolve('.data/portal-data.json'),
+    TEST_DATA_PATH,
     JSON.stringify({ articles: [], contactMessages: [] }),
     'utf-8'
   )
@@ -38,11 +50,11 @@ beforeEach(async () => {
 
 afterEach(async () => {
   // Clean up - restore with an empty store
-  await fs.writeFile(
-    path.resolve('.data/portal-data.json'),
-    JSON.stringify({ articles: [], contactMessages: [] }),
-    'utf-8'
-  )
+  try {
+    await fs.unlink(TEST_DATA_PATH)
+  } catch {
+    // ignore
+  }
 })
 
 function makeArticle(overrides: Partial<NewsArticle> = {}): Omit<NewsArticle, 'id'> {
@@ -240,3 +252,71 @@ describe('Contact Messages', () => {
     expect(messages.find((m) => m.id === created.id)).toBeUndefined()
   })
 })
+
+describe('Feed Sources', () => {
+  it('retrieves default sources when none created', async () => {
+    const sources = await getAllSources()
+    expect(sources.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('creates, updates, and deletes a source', async () => {
+    const created = await createSource({
+      name: 'Test News Source',
+      url: 'https://testnews.com',
+      feedUrl: 'https://testnews.com/rss.xml',
+      category: 'technology',
+      categoryLabel: 'প্রযুক্তি',
+      isActive: true,
+      fetchIntervalMinutes: 30,
+    })
+
+    expect(created.id).toMatch(/^src-/)
+    expect(created.name).toBe('Test News Source')
+
+    const fetched = await getSourceById(created.id)
+    expect(fetched?.feedUrl).toBe('https://testnews.com/rss.xml')
+
+    const updated = await updateSource(created.id, { isActive: false, lastStatus: 'ok' })
+    expect(updated?.isActive).toBe(false)
+    expect(updated?.lastStatus).toBe('ok')
+
+    const deleted = await deleteSource(created.id)
+    expect(deleted).toBe(true)
+    expect(await getSourceById(created.id)).toBeNull()
+  })
+})
+
+describe('AI Ingestion Logs', () => {
+  it('creates and retrieves AI logs', async () => {
+    const log = await createAiLog({
+      sourceUrl: 'https://example.com/story-1',
+      provider: 'gemini',
+      model: 'gemini-1.5-flash',
+      status: 'completed',
+      promptTokens: 120,
+      completionTokens: 85,
+      rawTitle: 'Original Feed Title',
+    })
+
+    expect(log.id).toBeTruthy()
+    expect(log.status).toBe('completed')
+
+    const logs = await getAllAiLogs()
+    expect(logs.find((l) => l.id === log.id)).toBeTruthy()
+
+    const updated = await updateAiLog(log.id, { status: 'failed', errorMessage: 'Simulated error' })
+    expect(updated?.status).toBe('failed')
+    expect(updated?.errorMessage).toBe('Simulated error')
+  })
+})
+
+describe('Dashboard Stats with Sources & Logs', () => {
+  it('includes sources and AI metrics in dashboard stats', async () => {
+    const stats = await getDashboardStats()
+    expect(typeof stats.totalSources).toBe('number')
+    expect(typeof stats.activeSources).toBe('number')
+    expect(typeof stats.totalAiLogs).toBe('number')
+    expect(typeof stats.failedAiLogs).toBe('number')
+  })
+})
+

@@ -18,6 +18,8 @@ export default function AdminSidebar({ unreadCount = 0 }: AdminSidebarProps) {
     { label: 'সকল সংবাদ', href: '/admin/articles', icon: '📰' },
     { label: 'নতুন সংবাদ', href: '/admin/articles/create', icon: '✍️' },
     { label: 'ব্রেকিং নিউজ', href: '/admin/breaking', icon: '🚨' },
+    { label: 'AI ড্রাফট', href: '/admin/ai-drafts', icon: '🤖' },
+    { label: 'ফিড সোর্স', href: '/admin/sources', icon: '📡' },
     { label: 'পাঠক বার্তা', href: '/admin/messages', icon: '✉️', badge: unreadCount },
   ]
 

@@ -72,18 +72,32 @@ export default async function AdminDashboardPage() {
               <span>নতুন সংবাদ লিখুন</span>
             </Link>
             <Link
+              href="/admin/ai-drafts"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200"
+            >
+              <span>🤖</span>
+              <span>AI ড্রাফট ({toBengaliNumber(stats.draftArticles)})</span>
+            </Link>
+            <Link
+              href="/admin/sources"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200"
+            >
+              <span>📡</span>
+              <span>ফিড সোর্স ({toBengaliNumber(stats.totalSources)})</span>
+            </Link>
+            <Link
               href="/admin/breaking"
               className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200"
             >
               <span>🚨</span>
-              <span>ব্রেকিং নিউজ নিয়ন্ত্রণ</span>
+              <span>ব্রেকিং নিউজ</span>
             </Link>
             <Link
               href="/admin/messages"
               className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all border border-slate-200"
             >
               <span>✉️</span>
-              <span>পাঠক বার্তা ({toBengaliNumber(stats.unreadMessages)})</span>
+              <span>বার্তা ({toBengaliNumber(stats.unreadMessages)})</span>
             </Link>
             <Link
               href="/"

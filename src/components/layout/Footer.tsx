@@ -77,6 +77,7 @@ export default function Footer() {
                 { label: 'আমাদের সম্পর্কে', href: '/about' },
                 { label: 'যোগাযোগ করুন', href: '/contact' },
                 { label: 'গোপনীয়তা নীতি', href: '/privacy-policy' },
+                { label: 'ব্যবহারের শর্তাবলী ও কপিরাইট', href: '/terms' },
               ].map((link) => (
                 <li key={link.href}>
                   <Link

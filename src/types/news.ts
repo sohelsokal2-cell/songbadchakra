@@ -55,4 +55,38 @@ export interface ContactMessage {
   createdAt: string
 }
 
+// Phase 9: News Feed Source definition
+export interface NewsSource {
+  id: string
+  name: string
+  url: string
+  feedUrl: string
+  category: string
+  categoryLabel: string
+  isActive: boolean
+  fetchIntervalMinutes: number
+  lastFetchedAt?: string
+  lastStatus?: 'ok' | 'error' | 'pending'
+  errorMessage?: string
+  createdAt: string
+}
+
+// Phase 9: AI Ingestion Log
+export interface AiLog {
+  id: string
+  sourceId?: string
+  sourceUrl: string
+  provider: string
+  model: string
+  status: 'pending' | 'processing' | 'completed' | 'failed'
+  promptTokens?: number
+  completionTokens?: number
+  errorMessage?: string
+  rawTitle?: string
+  rawSummary?: string
+  processedArticleId?: string
+  createdAt: string
+}
+
 export type Article = NewsArticle
+
