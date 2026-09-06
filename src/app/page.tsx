@@ -7,17 +7,18 @@ import VideoSection from '@/components/news/VideoSection'
 import CategorySection from '@/components/news/CategorySection'
 import AdvertisementPlaceholder from '@/components/ui/AdvertisementPlaceholder'
 import { listPublishedArticles } from '@/lib/public-news-repository'
-import { SITE_NAME, SITE_DESCRIPTION, SITE_DOMAIN } from '@/lib/utils'
+import { SITE_NAME, SITE_DESCRIPTION, SITE_DOMAIN, SITE_TAGLINE } from '@/lib/utils'
 
 export const metadata: Metadata = {
   title: {
-    absolute: `${SITE_NAME} | সত্যের পথে, সবার সাথে | বাংলা নিউজ পোর্টাল`,
+    absolute: `${SITE_NAME} | ${SITE_TAGLINE} | বাংলা নিউজ পোর্টাল`,
   },
   description: SITE_DESCRIPTION,
   alternates: { canonical: `https://${SITE_DOMAIN}` },
 }
 
 export const dynamic = 'force-dynamic'
+
 
 export default async function HomePage() {
   const allArticles = await listPublishedArticles()
@@ -34,8 +35,45 @@ export default async function HomePage() {
   const businessNews = byCategory('business')
   const entertainNews = byCategory('entertainment')
 
+  const websiteSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    url: `https://${SITE_DOMAIN}`,
+    description: SITE_DESCRIPTION,
+    inLanguage: 'bn-BD',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: { '@type': 'EntryPoint', urlTemplate: `https://${SITE_DOMAIN}/search?q={search_term_string}` },
+      'query-input': 'required name=search_term_string',
+    },
+  }
+
+  const organizationSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'NewsMediaOrganization',
+    name: SITE_NAME,
+    url: `https://${SITE_DOMAIN}`,
+    description: SITE_DESCRIPTION,
+    logo: {
+      '@type': 'ImageObject',
+      url: `https://${SITE_DOMAIN}/logo.png`,
+    },
+    sameAs: [],
+  }
+
   return (
     <>
+      {/* ── Structured Data (JSON-LD) ────────────────────────────────────── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
+
       {/* ── Breaking News Ticker ────────────────────────────────────────── */}
       <BreakingNews articles={allArticles.filter((article) => article.isBreaking)} />
 

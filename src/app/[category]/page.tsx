@@ -68,8 +68,23 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   const popularArticles = allArticles.slice(5, 10)
   const [heroArticle, ...restArticles] = articles
 
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'হোম', item: `https://${SITE_DOMAIN}` },
+      { '@type': 'ListItem', position: 2, name: cat.label, item: `https://${SITE_DOMAIN}/${cat.slug}` },
+    ],
+  }
+
   return (
     <div className="max-w-[var(--max-width-site)] mx-auto px-4 py-8">
+      {/* ── Structured Data (JSON-LD) ────────────────────────────────────── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+
       {/* ── Breadcrumb & Category Header ─────────────────────────────────── */}
       <nav aria-label="ব্রেডক্রাম্ব" className="mb-4 text-xs text-[var(--color-text-muted)] flex items-center gap-2">
         <Link href="/" className="hover:text-[var(--color-brand-primary)] transition-colors">

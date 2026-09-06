@@ -43,3 +43,9 @@ next-env.d.ts
 # local runtime data (may contain contact PII)
 /.data/
 /src/data/portal-data.json
+
+# Cloudflare / OpenNext build output
+/.open-next/
+
+# Wrangler dev state
+.wrangler/
