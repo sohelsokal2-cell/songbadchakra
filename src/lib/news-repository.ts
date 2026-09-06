@@ -81,6 +81,10 @@ async function supabaseRequest<T>(resource: string, init: RequestInit = {}): Pro
   const config = getSupabaseConfig()
   if (!config) throw new Error('Supabase is not configured.')
 
+  if (init.method === 'DELETE' && !resource.includes('?id=eq.')) {
+    throw new Error(`Unsafe operation rejected: DELETE on '${resource}' without explicit id filter.`)
+  }
+
   const response = await fetch(`${config.url}/rest/v1/${resource}`, {
     ...init,
     cache: 'no-store',
@@ -330,6 +334,7 @@ export async function updateArticle(id: string, payload: Partial<Omit<NewsArticl
 }
 
 export async function deleteArticle(id: string) {
+  if (!id || typeof id !== 'string' || !id.trim()) return false
   if (getSupabaseConfig()) {
     const rows = await supabaseRequest<Record<string, unknown>[]>(`articles?id=eq.${encodeURIComponent(id)}`, {
       method: 'DELETE', headers: { Prefer: 'return=representation' },
@@ -416,6 +421,7 @@ export async function markContactMessageRead(id: string, isRead: boolean) {
 }
 
 export async function deleteContactMessage(id: string) {
+  if (!id || typeof id !== 'string' || !id.trim()) return false
   if (getSupabaseConfig()) {
     const rows = await supabaseRequest<Record<string, unknown>[]>(`contact_messages?id=eq.${encodeURIComponent(id)}`, {
       method: 'DELETE', headers: { Prefer: 'return=representation' },
@@ -497,6 +503,7 @@ export async function updateSource(
 }
 
 export async function deleteSource(id: string): Promise<boolean> {
+  if (!id || typeof id !== 'string' || !id.trim()) return false
   if (getSupabaseConfig()) {
     const rows = await supabaseRequest<Record<string, unknown>[]>(
       `sources?id=eq.${encodeURIComponent(id)}`,

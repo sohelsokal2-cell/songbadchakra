@@ -1,14 +1,10 @@
 -- ==============================================================================
 -- Phase 9: RSS Feeds & AI News Automation Migration
--- Recreates sources & ai_logs tables with canonical TEXT primary keys
+-- Safe idempotent creation of sources & ai_logs tables with TEXT primary keys
 -- ==============================================================================
 
--- Drop existing tables to eliminate any schema/type conflicts (e.g. bigint id)
-drop table if exists public.ai_logs cascade;
-drop table if exists public.sources cascade;
-
--- 1. Sources Table
-create table public.sources (
+-- 1. Sources Table (Idempotent - never drops existing data)
+create table if not exists public.sources (
   id text primary key,
   name text not null,
   url text not null,
@@ -23,18 +19,19 @@ create table public.sources (
   created_at timestamptz not null default now()
 );
 
-create index idx_sources_is_active on public.sources(is_active);
-create index idx_sources_category on public.sources(category);
+create index if not exists idx_sources_is_active on public.sources(is_active);
+create index if not exists idx_sources_category on public.sources(category);
 
 alter table public.sources enable row level security;
 
+drop policy if exists "Allow service role full access to sources" on public.sources;
 create policy "Allow service role full access to sources"
   on public.sources for all to service_role
   using (true)
   with check (true);
 
 -- 2. AI & Ingestion Logs Table
-create table public.ai_logs (
+create table if not exists public.ai_logs (
   id text primary key,
   source_id text references public.sources(id) on delete set null,
   source_url text not null,
@@ -50,12 +47,13 @@ create table public.ai_logs (
   created_at timestamptz not null default now()
 );
 
-create index idx_ai_logs_created_at on public.ai_logs(created_at desc);
-create index idx_ai_logs_status on public.ai_logs(status);
-create index idx_ai_logs_source_url on public.ai_logs(source_url);
+create index if not exists idx_ai_logs_created_at on public.ai_logs(created_at desc);
+create index if not exists idx_ai_logs_status on public.ai_logs(status);
+create index if not exists idx_ai_logs_source_url on public.ai_logs(source_url);
 
 alter table public.ai_logs enable row level security;
 
+drop policy if exists "Allow service role full access to ai_logs" on public.ai_logs;
 create policy "Allow service role full access to ai_logs"
   on public.ai_logs for all to service_role
   using (true)

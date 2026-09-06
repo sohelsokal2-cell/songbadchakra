@@ -6,11 +6,9 @@
  */
 
 import {
-  type NewsArticle,
   type NewsSource,
 } from '@/types/news'
 import {
-  createArticle,
   getAllArticles,
   createAiLog,
   updateSource,
@@ -382,48 +380,33 @@ export async function ingestSource(source: NewsSource): Promise<IngestionResult>
       }
 
       try {
-        // AI processing
-        const aiOutput = await processItemWithAi(item, source)
+        // AI processing via full Phase 10 Pipeline (Collector -> Writer -> Fact-Checker -> Image -> SEO -> Duplicate -> Rule Engine)
+        const { runPipeline } = await import('@/lib/ai/pipeline')
+        const pipeResult = await runPipeline(item, source)
 
-        // Always creates article in 'draft' status
-        const newArticle: Omit<NewsArticle, 'id'> = {
-          title: aiOutput.title,
-          slug: generateSlug(aiOutput.title),
-          summary: aiOutput.summary,
-          content: aiOutput.content,
-          category: source.category,
-          categoryLabel: source.categoryLabel,
-          sourceName: source.name,
-          sourceUrl: item.link,
-          imageUrl: item.imageUrl || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=800&auto=format&fit=crop&q=80',
-          publishedAt: item.pubDate || new Date().toISOString(),
-          isBreaking: false,
-          status: 'draft', // Strictly draft for editor approval
-          author: {
-            name: `${source.name} (AI সংকলিত)`,
-            title: 'সংবাদচক্র অটোমেশন ডেস্ক',
-          },
-          readingTime: aiOutput.readingTime,
-          tags: aiOutput.tags,
+        if (pipeResult.status === 'published' || pipeResult.status === 'held') {
+          existingUrls.add(item.link)
+          result.ingestedCount++
+
+          // Record AI log for backward-compatible dashboard visibility
+          await createAiLog({
+            sourceId: source.id,
+            sourceUrl: item.link,
+            provider: 'ai-automation-pipeline',
+            model: 'phase-10-engine',
+            status: 'completed',
+            rawTitle: item.title,
+            rawSummary: item.description.slice(0, 300),
+            processedArticleId: pipeResult.articleId,
+          })
+        } else if (pipeResult.status === 'rejected') {
+          result.skippedCount++
+        } else {
+          result.failedCount++
+          if (pipeResult.error) {
+            result.errors.push(`Item "${item.title.slice(0, 30)}...": ${pipeResult.error}`)
+          }
         }
-
-        const createdArticle = await createArticle(newArticle)
-        existingUrls.add(item.link)
-        result.ingestedCount++
-
-        // Record AI log
-        await createAiLog({
-          sourceId: source.id,
-          sourceUrl: item.link,
-          provider: aiOutput.provider,
-          model: aiOutput.model,
-          status: 'completed',
-          promptTokens: aiOutput.promptTokens,
-          completionTokens: aiOutput.completionTokens,
-          rawTitle: item.title,
-          rawSummary: item.description.slice(0, 300),
-          processedArticleId: createdArticle.id,
-        })
       } catch (itemError) {
         result.failedCount++
         const errMsg = itemError instanceof Error ? itemError.message : String(itemError)

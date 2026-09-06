@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import SafeImage from '@/components/common/SafeImage'
 import { type NewsArticle } from '@/types/news'
 import { formatRelativeTime } from '@/lib/utils'
 import { CategoryBadge } from './NewsCard'
@@ -21,7 +21,7 @@ export default function FeaturedNewsCard({
     >
       {/* Background image */}
       <Link href={`/news/${article.slug}`} className="absolute inset-0" tabIndex={-1} aria-hidden="true">
-        <Image
+        <SafeImage
           src={article.imageUrl}
           alt={article.title}
           fill

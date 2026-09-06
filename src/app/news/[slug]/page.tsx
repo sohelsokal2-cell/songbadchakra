@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import Image from 'next/image'
+import SafeImage from '@/components/common/SafeImage'
 import Link from 'next/link'
 import { listPublishedArticles, getPublishedArticleBySlug } from '@/lib/public-news-repository'
 import NewsCard from '@/components/news/NewsCard'
@@ -189,7 +189,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
 
           {/* Featured Image with Caption */}
           <figure className="mb-6 rounded-xl overflow-hidden aspect-[16/9] relative shadow-xs">
-            <Image
+            <SafeImage
               src={article.imageUrl}
               alt={article.title}
               fill

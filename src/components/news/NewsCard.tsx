@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import SafeImage from '@/components/common/SafeImage'
 import { type NewsArticle } from '@/types/news'
 import { formatRelativeTime } from '@/lib/utils'
 
@@ -25,7 +25,7 @@ export default function NewsCard({
           tabIndex={-1}
           aria-hidden="true"
         >
-          <Image
+          <SafeImage
             src={article.imageUrl}
             alt={article.title}
             fill
@@ -55,7 +55,7 @@ export default function NewsCard({
     return (
       <article className={`news-card group flex gap-2 py-2 border-b border-[var(--color-border)] last:border-0 ${className}`}>
         <Link href={`/news/${article.slug}`} tabIndex={-1} aria-hidden="true" className="shrink-0 w-16 h-14 relative overflow-hidden rounded-md block">
-          <Image
+          <SafeImage
             src={article.imageUrl}
             alt={article.title}
             fill
@@ -80,7 +80,7 @@ export default function NewsCard({
     <article className={`news-card group bg-white rounded-xl border border-[var(--color-border)] overflow-hidden shadow-[var(--shadow-card)] flex flex-col ${className}`}>
       {/* Image */}
       <Link href={`/news/${article.slug}`} className="block relative overflow-hidden h-48" tabIndex={-1} aria-hidden="true">
-        <Image
+        <SafeImage
           src={article.imageUrl}
           alt={article.title}
           fill

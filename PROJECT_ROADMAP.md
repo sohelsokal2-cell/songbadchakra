@@ -6,33 +6,46 @@
 
 এই রোডম্যাপটি বর্তমান build যেখানে এসে পৌঁছেছে, সেখান থেকে production launch এবং পরবর্তী automation পর্যন্ত বাকি কাজ phase অনুযায়ী সাজায়। প্রতিটি phase-এর acceptance criteria পূরণ না করে পরের phase-এ যাওয়া উচিত নয়।
 
-## বর্তমান অবস্থা
+## বর্তমান অবস্থা (আপডেট: সেপ্টেম্বর ২০২৬)
 
-### সম্পন্ন
+### সম্পন্ন (Completed)
 
 - Next.js 16, TypeScript, App Router, Tailwind CSS এবং ESLint project setup
 - বাংলা news portal homepage ও responsive public pages
-- Category, article details, search, popular, opinion, video এবং sitemap routes
+- Category, article details, search, popular, opinion, video এবং dynamic sitemap routes
 - Admin login, dashboard, article CRUD, breaking-news management এবং contact inbox
 - HMAC-signed admin session এবং protected admin API routes
-- Local development persistence: `.data/portal-data.json`
+- Local development persistence & fallback: `.data/portal-data.json`
 - Published article-এর জন্য public repository read path
 - Supabase REST-compatible article এবং contact repository
-- Local runtime data ও contact PII Git থেকে বাদ দেওয়া
-- Article slug uniqueness, update allowlist এবং image host validation
-- Contact field limits, basic rate limiting এবং read/unread contract
-- `npm run lint`, `npm run build` এবং `git diff --check` সফল
+- **Phase 4 & 5 (Supabase Schema & Connectivity)**:
+  - Canonical `articles`, `contact_messages`, `sources`, `ai_logs` migrations apply
+  - RLS policies (anon read published, service_role full control)
+  - Partial unique index `idx_articles_source_url_unique` on `articles(source_url)`
+  - Safe, idempotent migrations (`IF NOT EXISTS`) without destructive `DROP TABLE`
+  - Database Safety Guard migration (`20260906_database_safety_guards.sql`)
+  - Repository-level anti-mass-deletion guards
+- **Phase 6 & 7 (Testing & Seed Data)**:
+  - Vitest test suite (`admin-auth.test.ts`, `news-repository.test.ts`, `rss-ingestion.test.ts`, `contact-form.test.ts`)
+  - Live Supabase E2E smoke test script (`scripts/smoke-test-supabase.mjs`)
+  - Curated, high-resolution thematic Unsplash photos for sample articles
+  - `SafeImage` client component with automatic fallback for broken/missing images
+- **Phase 8 (Cloudflare Readiness & Caching)**:
+  - `@opennextjs/cloudflare` adapter and `wrangler.jsonc` setup
+  - Strict security headers (`HSTS`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`)
+  - Edge Cache rules configured in `next.config.ts` (1-year immutable for static assets, 60s/300s SWR for public news, strict `no-store` / `Surrogate-Control: no-store` for admin & auth)
+- **Phase 9 (RSS & AI News Automation)**:
+  - Automated RSS ingestion pipeline (`src/lib/rss-ingestion.ts`) with HTML sanitization
+  - Google Gemini AI summarization and categorization
+  - Admin `SourcesManager` (full source CRUD, toggle, interval) and `AiDraftsManager` (preview, approve, reject)
+  - Dedicated `/api/cron/rss` scheduled route secured with `CRON_SECRET`
+  - GitHub Actions hourly cron workflow (`.github/workflows/rss-cron.yml`)
 
-### এখনো production-ready নয়
+### পরবর্তী ধাপ (Next Step - Phase 10)
 
-- Supabase Dashboard-এ আগে `categories`, `news`, `sources`, `ai_logs` schema তৈরি হয়েছে, কিন্তু বর্তমান application `articles` এবং `contact_messages` table ব্যবহার করে। এই conflict resolve না করলে production data কাজ করবে না।
-- Supabase migrations এখনো remote project-এ apply করা হয়েছে কি না নিশ্চিত নয়।
-- Seed/mock articles Supabase-এ import করা হয়নি।
-- Production environment variables configure করা হয়নি।
-- Automated tests নেই।
-- Cloudflare adapter/configuration এবং deployment setup নেই।
-- Admin login-এ brute-force protection শুধু contact form-এর মতো rate-limited নয়।
-- AI/RSS ingestion pipeline এখনো তৈরি হয়নি।
+- Cloudflare remote deployment (`npm run cf:deploy`) যখন ইউজার deploy করতে চাইবেন।
+- Custom domain connection ও final live DNS setup।
+- Google Search Console ও Google News Publisher Center submission।
 
 ---
 

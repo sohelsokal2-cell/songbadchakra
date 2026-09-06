@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#334155" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e11d48" />
+      <stop offset="100%" stop-color="#f43f5e" />
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e11d48" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#bgGrad)" />
+  <circle cx="400" cy="225" r="300" fill="url(#glow)" />
+
+  <!-- Geometric Grid Pattern Overlay -->
+  <g opacity="0.07" stroke="#ffffff" stroke-width="1">
+    <line x1="0" y1="90" x2="800" y2="90" />
+    <line x1="0" y1="180" x2="800" y2="180" />
+    <line x1="0" y1="270" x2="800" y2="270" />
+    <line x1="0" y1="360" x2="800" y2="360" />
+    <line x1="160" y1="0" x2="160" y2="450" />
+    <line x1="320" y1="0" x2="320" y2="450" />
+    <line x1="480" y1="0" x2="480" y2="450" />
+    <line x1="640" y1="0" x2="640" y2="450" />
+  </g>
+
+  <!-- News Icon Badge -->
+  <g transform="translate(340, 120)">
+    <rect width="120" height="120" rx="24" fill="url(#accentGrad)" filter="drop-shadow(0 10px 20px rgba(225,29,72,0.4))" />
+    <!-- Newspaper / Broadcast Icon -->
+    <path d="M35 35h50a5 5 0 0 1 5 5v40a5 5 0 0 1-5 5H35a5 5 0 0 1-5-5V40a5 5 0 0 1 5-5z" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="42" y1="48" x2="65" y2="48" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <line x1="42" y1="58" x2="78" y2="58" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+    <line x1="42" y1="68" x2="72" y2="68" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+  </g>
+
+  <!-- Brand Typography -->
+  <text x="400" y="295" text-anchor="middle" font-family="'Hind Siliguri', 'Noto Sans Bengali', system-ui, sans-serif" font-size="34" font-weight="bold" fill="#ffffff" letter-spacing="1">
+    সংবাদচক্র
+  </text>
+  <text x="400" y="325" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="500" fill="#94a3b8" letter-spacing="2">
+    SONGBADCHAKRA NEWSROOM
+  </text>
+</svg>
