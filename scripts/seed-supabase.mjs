@@ -52,7 +52,7 @@ if (articles.length === 0) {
   let content = fs.readFileSync(mockNewsPath, 'utf-8')
   content = content.replace(/import\s*\{[^}]*\}\s*from\s*['"]@\/types\/news['"]/, '')
   content = content.replace('export const mockNews: NewsArticle[] =', 'export const mockNews =')
-  const tempFile = path.resolve('scripts/_temp_mock_seed.mjs')
+  const tempFile = path.resolve('scripts/_temp_mock_seed.ts')
   fs.writeFileSync(tempFile, content, 'utf-8')
   try {
     const { mockNews } = await import(`file://${tempFile}`)
