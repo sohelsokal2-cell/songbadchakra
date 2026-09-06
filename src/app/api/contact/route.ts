@@ -21,6 +21,10 @@ function isRateLimited(request: Request): boolean {
   return false
 }
 
+export function _resetContactRateLimitMap() {
+  submissions.clear()
+}
+
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }

@@ -7,6 +7,22 @@ import {
   verifySessionToken,
 } from '@/lib/admin-auth'
 
+const loginAttempts = new Map<string, number[]>()
+
+function isLoginRateLimited(request: Request): boolean {
+  const key = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local'
+  const cutoff = Date.now() - 15 * 60 * 1000 // 15 minutes window
+  const recent = (loginAttempts.get(key) || []).filter((timestamp) => timestamp > cutoff)
+  if (recent.length >= 5) return true
+  recent.push(Date.now())
+  loginAttempts.set(key, recent)
+  return false
+}
+
+export function _resetRateLimitMap() {
+  loginAttempts.clear()
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -20,6 +36,13 @@ export async function POST(request: Request) {
     }
 
     if (action === 'login') {
+      if (isLoginRateLimited(request)) {
+        return NextResponse.json(
+          { error: 'অতিরিক্ত ব্যর্থ বা পুনরাবৃত্ত প্রচেষ্টার কারণে লগইন সাময়িকভাবে স্থগিত করা হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।' },
+          { status: 429 }
+        )
+      }
+
       if (!email || !password) {
         return NextResponse.json(
           { error: 'ইমেইল এবং পাসওয়ার্ড প্রদান করুন।' },

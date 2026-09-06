@@ -1,4 +1,4 @@
-// Core news article interface — mirrors the Supabase 'news' table schema
+// Core news article interface — mirrors the canonical Supabase 'articles' table schema
 export interface NewsArticle {
   id: string
   title: string
