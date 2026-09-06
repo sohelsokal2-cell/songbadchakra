@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CATEGORIES, getCategoryBySlug, SITE_NAME, SITE_DOMAIN } from '@/lib/utils'
-import { getNewsByCategory, getLatestNews } from '@/data/mockNews'
+import { listPublishedArticles } from '@/lib/public-news-repository'
 import NewsCard from '@/components/news/NewsCard'
 import FeaturedNewsCard from '@/components/news/FeaturedNewsCard'
 import LatestNews from '@/components/news/LatestNews'
@@ -13,6 +13,8 @@ import AdvertisementPlaceholder from '@/components/ui/AdvertisementPlaceholder'
 interface CategoryPageProps {
   params: Promise<{ category: string }>
 }
+
+export const dynamic = 'force-dynamic'
 
 export async function generateStaticParams() {
   return CATEGORIES.map((cat) => ({
@@ -58,7 +60,12 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
   }
 
   // If latest category, get all sorted by latest date, otherwise filter by category
-  const articles = slug === 'latest' ? getLatestNews(30) : getNewsByCategory(slug)
+  const allArticles = await listPublishedArticles()
+  const articles = slug === 'latest'
+    ? allArticles.slice(0, 30)
+    : allArticles.filter((article) => article.category === slug)
+  const latestArticles = allArticles.slice(0, 5)
+  const popularArticles = allArticles.slice(5, 10)
   const [heroArticle, ...restArticles] = articles
 
   return (
@@ -128,7 +135,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
               <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-brand-secondary)] inline-block" />
               সর্বাধিক পঠিত
             </h2>
-            <PopularNews limit={5} />
+            <PopularNews limit={5} articles={popularArticles} />
           </div>
 
           <AdvertisementPlaceholder size="square" label="বিজ্ঞাপন" />
@@ -139,7 +146,7 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
               <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-brand-primary)] inline-block" />
               তাজা সংবাদ
             </h2>
-            <LatestNews limit={5} />
+            <LatestNews limit={5} articles={latestArticles} />
           </div>
         </aside>
       </div>

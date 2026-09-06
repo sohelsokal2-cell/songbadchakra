@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { searchNews } from '@/data/mockNews'
+import { listPublishedArticles } from '@/lib/public-news-repository'
 import NewsCard from '@/components/news/NewsCard'
 import LatestNews from '@/components/news/LatestNews'
 import PopularNews from '@/components/news/PopularNews'
@@ -30,7 +30,12 @@ export async function generateMetadata({ searchParams }: SearchPageProps): Promi
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q } = await searchParams
   const query = q?.trim() || ''
-  const results = query ? searchNews(query) : []
+  const allArticles = await listPublishedArticles()
+  const results = query
+    ? allArticles.filter((article) => `${article.title} ${article.summary} ${article.categoryLabel}`.toLowerCase().includes(query.toLowerCase()))
+    : []
+  const latestArticles = allArticles.slice(0, 5)
+  const popularArticles = allArticles.slice(5, 10)
 
   return (
     <div className="max-w-[var(--max-width-site)] mx-auto px-4 py-8">
@@ -96,7 +101,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-brand-secondary)] inline-block" />
               সর্বাধিক পঠিত
             </h2>
-            <PopularNews limit={5} />
+            <PopularNews limit={5} articles={popularArticles} />
           </div>
 
           <AdvertisementPlaceholder size="square" label="বিজ্ঞাপন" />
@@ -107,7 +112,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-brand-primary)] inline-block" />
               তাজা সংবাদ
             </h2>
-            <LatestNews limit={5} />
+            <LatestNews limit={5} articles={latestArticles} />
           </div>
         </aside>
       </div>

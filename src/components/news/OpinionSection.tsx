@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { getOpinionNews } from '@/data/mockNews'
+import type { NewsArticle } from '@/types/news'
 
-export default function OpinionSection() {
-  const opinions = getOpinionNews()
+export default function OpinionSection({ articles }: { articles: NewsArticle[] }) {
+  const opinions = articles
 
   return (
     <section className="bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 rounded-2xl border border-amber-200/70 p-6 mb-10 shadow-xs">

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Image from 'next/image'
-import { getPopularNews, getLatestNews } from '@/data/mockNews'
+import { listPublishedArticles } from '@/lib/public-news-repository'
 import AdvertisementPlaceholder from '@/components/ui/AdvertisementPlaceholder'
 import { formatRelativeTime, toBengaliNumber, SITE_NAME, SITE_DOMAIN } from '@/lib/utils'
 
@@ -13,9 +13,12 @@ export const metadata: Metadata = {
   },
 }
 
-export default function PopularNewsPage() {
-  const popularNews = getPopularNews(12)
-  const latestSidebar = getLatestNews(6)
+export const dynamic = 'force-dynamic'
+
+export default async function PopularNewsPage() {
+  const allArticles = await listPublishedArticles()
+  const popularNews = allArticles.slice(5, 17)
+  const latestSidebar = allArticles.slice(0, 6)
 
   return (
     <div className="max-w-[var(--max-width-site)] mx-auto px-4 py-8">

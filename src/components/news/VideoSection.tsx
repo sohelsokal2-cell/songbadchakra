@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { getVideoNews } from '@/data/mockNews'
+import type { NewsArticle } from '@/types/news'
 
-export default function VideoSection() {
-  const videos = getVideoNews()
+export default function VideoSection({ articles }: { articles: NewsArticle[] }) {
+  const videos = articles
   const [mainVideo, ...subVideos] = videos
 
   return (

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
-import { getNewsBySlug, getRelatedNews, getAllNews, getLatestNews, getPopularNews } from '@/data/mockNews'
+import { listPublishedArticles, getPublishedArticleBySlug } from '@/lib/public-news-repository'
 import NewsCard from '@/components/news/NewsCard'
 import ArticleActions from '@/components/news/ArticleActions'
 import TabbedNewsWidget from '@/components/news/TabbedNewsWidget'
@@ -13,14 +13,16 @@ interface ArticlePageProps {
   params: Promise<{ slug: string }>
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function generateStaticParams() {
-  const articles = getAllNews()
+  const articles = await listPublishedArticles()
   return articles.map((a) => ({ slug: a.slug }))
 }
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params
-  const article = getNewsBySlug(slug)
+  const article = await getPublishedArticleBySlug(slug)
   if (!article) return {}
 
   return {
@@ -47,12 +49,13 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params
-  const article = getNewsBySlug(slug)
+  const article = await getPublishedArticleBySlug(slug)
   if (!article) notFound()
 
-  const related = getRelatedNews(article, 3)
-  const latestList = getLatestNews(8)
-  const popularList = getPopularNews(8)
+  const allArticles = await listPublishedArticles()
+  const related = allArticles.filter((candidate) => candidate.id !== article.id && candidate.category === article.category).slice(0, 3)
+  const latestList = allArticles.slice(0, 8)
+  const popularList = allArticles.slice(5, 13)
   const fullArticleUrl = `https://${SITE_DOMAIN}/news/${article.slug}`
 
   const newsArticleSchema = {

@@ -96,8 +96,12 @@ export default function Footer() {
       {/* Bottom bar */}
       <div className="border-t border-white/10">
         <div className="max-w-[var(--max-width-site)] mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-white/50 text-xs text-center sm:text-left">
-            © {currentYear} সংবাদচক্র। সর্বস্বত্ব সংরক্ষিত।
+          <p className="text-white/50 text-xs text-center sm:text-left flex items-center gap-2">
+            <span>© {currentYear} সংবাদচক্র। সর্বস্বত্ব সংরক্ষিত।</span>
+            <span className="text-white/20">•</span>
+            <Link href="/admin" className="text-white/30 hover:text-white/80 transition-colors text-[11px]">
+              সম্পাদকীয় প্রবেশ
+            </Link>
           </p>
           <p className="text-white/40 text-xs">
             সত্যের পথে, সবার সাথে

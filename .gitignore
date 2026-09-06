@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local runtime data (may contain contact PII)
+/.data/
+/src/data/portal-data.json

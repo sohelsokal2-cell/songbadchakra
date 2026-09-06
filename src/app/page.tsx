@@ -6,12 +6,7 @@ import OpinionSection from '@/components/news/OpinionSection'
 import VideoSection from '@/components/news/VideoSection'
 import CategorySection from '@/components/news/CategorySection'
 import AdvertisementPlaceholder from '@/components/ui/AdvertisementPlaceholder'
-import {
-  getFeaturedNews,
-  getLatestNews,
-  getPopularNews,
-  getNewsByCategory,
-} from '@/data/mockNews'
+import { listPublishedArticles } from '@/lib/public-news-repository'
 import { SITE_NAME, SITE_DESCRIPTION, SITE_DOMAIN } from '@/lib/utils'
 
 export const metadata: Metadata = {
@@ -22,23 +17,27 @@ export const metadata: Metadata = {
   alternates: { canonical: `https://${SITE_DOMAIN}` },
 }
 
-export default function HomePage() {
-  const featured = getFeaturedNews()
-  const latestAll = getLatestNews(10)
-  const popularAll = getPopularNews(10)
+export const dynamic = 'force-dynamic'
+
+export default async function HomePage() {
+  const allArticles = await listPublishedArticles()
+  const featured = allArticles[0]
+  const latestAll = allArticles.slice(0, 10)
+  const popularAll = allArticles.slice(5, 15)
   const subLeads = latestAll.slice(1, 3)
 
-  const bangladeshNews    = getNewsByCategory('bangladesh').slice(0, 4)
-  const internationalNews = getNewsByCategory('international').slice(0, 4)
-  const sportsNews        = getNewsByCategory('sports').slice(0, 4)
-  const techNews          = getNewsByCategory('technology').slice(0, 4)
-  const businessNews      = getNewsByCategory('business').slice(0, 4)
-  const entertainNews     = getNewsByCategory('entertainment').slice(0, 4)
+  const byCategory = (category: string) => allArticles.filter((article) => article.category === category).slice(0, 4)
+  const bangladeshNews = byCategory('bangladesh')
+  const internationalNews = byCategory('international')
+  const sportsNews = byCategory('sports')
+  const techNews = byCategory('technology')
+  const businessNews = byCategory('business')
+  const entertainNews = byCategory('entertainment')
 
   return (
     <>
       {/* ── Breaking News Ticker ────────────────────────────────────────── */}
-      <BreakingNews />
+      <BreakingNews articles={allArticles.filter((article) => article.isBreaking)} />
 
       <div className="max-w-[var(--max-width-site)] mx-auto px-4 py-6">
         {/* ── Signature Prothom Alo Lead Grid (Lead + Sub-leads + Tabbed Box) ── */}
@@ -55,7 +54,7 @@ export default function HomePage() {
         </div>
 
         {/* ── Regional / District News ("সারাদেশের খবর") ─────────────────── */}
-        <DistrictNewsSection />
+      <DistrictNewsSection articles={allArticles} />
 
         {/* ── Main Category Content Columns ───────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
@@ -74,10 +73,10 @@ export default function HomePage() {
         </div>
 
         {/* ── Opinion & Editorial Section ("মতামত ও সম্পাদকীয়") ─────────── */}
-        <OpinionSection />
+        <OpinionSection articles={allArticles.filter((article) => article.isOpinion)} />
 
         {/* ── Video & Multimedia Section ─────────────────────────────────── */}
-        <VideoSection />
+        <VideoSection articles={allArticles.filter((article) => article.isVideo)} />
 
         {/* ── Sports & Technology Grid ─────────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">

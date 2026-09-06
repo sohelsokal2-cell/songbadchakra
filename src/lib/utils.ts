@@ -12,6 +12,8 @@ export function formatDate(dateString: string): string {
   })
 }
 
+export const formatDateBengali = formatDate
+
 /**
  * Format a date string to relative time (e.g. "৩ ঘণ্টা আগে")
  */
@@ -110,6 +112,8 @@ export const CATEGORIES: Category[] = [
   { id: '8', slug: 'entertainment', label: 'বিনোদন',        labelEn: 'Entertainment' },
   { id: '9', slug: 'science',       label: 'বিজ্ঞান',       labelEn: 'Science' },
   { id: '10', slug: 'lifestyle',    label: 'লাইফস্টাইল',   labelEn: 'Lifestyle' },
+  { id: '11', slug: 'opinion',      label: 'মতামত',         labelEn: 'Opinion' },
+  { id: '12', slug: 'video',        label: 'ভিডিও',         labelEn: 'Video' },
 ]
 
 export const getCategoryBySlug = (slug: string): Category | undefined =>
@@ -128,4 +132,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'বিনোদন',        href: '/entertainment' },
   { label: 'বিজ্ঞান',       href: '/science' },
   { label: 'লাইফস্টাইল',   href: '/lifestyle' },
+  { label: 'মতামত',         href: '/opinion' },
+  { label: 'ভিডিও',         href: '/video' },
 ]

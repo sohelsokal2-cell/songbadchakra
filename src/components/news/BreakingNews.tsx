@@ -1,7 +1,7 @@
-import { getBreakingNews } from '@/data/mockNews'
+import type { NewsArticle } from '@/types/news'
 
-export default function BreakingNews() {
-  const breaking = getBreakingNews()
+export default function BreakingNews({ articles }: { articles: NewsArticle[] }) {
+  const breaking = articles
 
   if (breaking.length === 0) return null
 

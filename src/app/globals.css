@@ -28,6 +28,8 @@
   --color-cat-science:       #0891B2;
   --color-cat-lifestyle:     #7C3AED;
   --color-cat-latest:        #C8102E;
+  --color-cat-opinion:       #0D9488;
+  --color-cat-video:         #DC2626;
 
   /* Typography */
   --font-bengali: var(--font-noto-bengali), 'Noto Serif Bengali', 'Kalpurush', serif;
@@ -130,6 +132,8 @@ p {
 .cat-science       { background-color: var(--color-cat-science); }
 .cat-lifestyle     { background-color: var(--color-cat-lifestyle); }
 .cat-latest        { background-color: var(--color-cat-latest); }
+.cat-opinion       { background-color: var(--color-cat-opinion); }
+.cat-video         { background-color: var(--color-cat-video); }
 
 /* ─── Loading skeleton shimmer ──────────────────────────────────────────── */
 @keyframes shimmer {

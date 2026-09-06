@@ -1,12 +1,12 @@
-import { getLatestNews } from '@/data/mockNews'
+import type { NewsArticle } from '@/types/news'
 import NewsCard from './NewsCard'
 
 interface LatestNewsProps {
   limit?: number
 }
 
-export default function LatestNews({ limit = 6 }: LatestNewsProps) {
-  const articles = getLatestNews(limit)
+export default function LatestNews({ limit = 6, articles = [] }: LatestNewsProps & { articles?: NewsArticle[] }) {
+  const visibleArticles = articles.slice(0, limit)
 
   return (
     <aside aria-labelledby="sidebar-latest">
@@ -16,7 +16,7 @@ export default function LatestNews({ limit = 6 }: LatestNewsProps) {
         </h2>
       </div>
       <div className="space-y-0">
-        {articles.map((article) => (
+        {visibleArticles.map((article) => (
           <NewsCard key={article.id} article={article} variant="compact" />
         ))}
       </div>

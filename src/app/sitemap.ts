@@ -1,10 +1,12 @@
 import type { MetadataRoute } from 'next'
 import { CATEGORIES, getSiteUrl } from '@/lib/utils'
-import { getAllNews } from '@/data/mockNews'
+import { listPublishedArticles } from '@/lib/public-news-repository'
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export const dynamic = 'force-dynamic'
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = getSiteUrl()
-  const articles = getAllNews()
+  const articles = await listPublishedArticles()
 
   // Find newest published timestamp
   const latestArticleDate = articles.length > 0

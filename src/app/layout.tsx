@@ -1,8 +1,7 @@
 import type { Metadata } from 'next'
 import { Noto_Serif_Bengali, Inter } from 'next/font/google'
 import './globals.css'
-import Header from '@/components/layout/Header'
-import Footer from '@/components/layout/Footer'
+import PortalLayout from '@/components/layout/PortalLayout'
 import { SITE_NAME, SITE_DESCRIPTION, SITE_DOMAIN } from '@/lib/utils'
 
 const notoBengali = Noto_Serif_Bengali({
@@ -74,11 +73,7 @@ export default function RootLayout({
         className="min-h-screen flex flex-col bg-[var(--color-surface)]"
         suppressHydrationWarning
       >
-        <Header />
-        <main className="flex-1">
-          {children}
-        </main>
-        <Footer />
+        <PortalLayout>{children}</PortalLayout>
       </body>
     </html>
   )

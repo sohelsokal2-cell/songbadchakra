@@ -41,3 +41,18 @@ export interface NavItem {
   label: string        // Bengali label
   href: string
 }
+
+// Contact message interface
+export interface ContactMessage {
+  id: string
+  name: string
+  email: string
+  phone?: string
+  subject: string
+  message: string
+  isRead?: boolean
+  read?: boolean
+  createdAt: string
+}
+
+export type Article = NewsArticle

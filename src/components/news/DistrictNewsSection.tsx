@@ -4,12 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { BANGLADESH_DIVISIONS, formatRelativeTime } from '@/lib/utils'
-import { getNewsByDivision } from '@/data/mockNews'
+import type { NewsArticle } from '@/types/news'
 
-export default function DistrictNewsSection() {
+export default function DistrictNewsSection({ articles }: { articles: NewsArticle[] }) {
   const [selectedDivision, setSelectedDivision] = useState<string>('all')
 
-  const articles = getNewsByDivision(selectedDivision)
+  const filteredArticles = selectedDivision === 'all'
+    ? articles.slice(0, 6)
+    : articles.filter((article) => article.division === selectedDivision).slice(0, 6)
 
   return (
     <section className="bg-white rounded-2xl border border-[var(--color-border)] p-6 mb-10 shadow-xs">
@@ -48,7 +50,7 @@ export default function DistrictNewsSection() {
 
       {/* ── News Grid ────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {articles.slice(0, 6).map((article) => (
+        {filteredArticles.map((article) => (
           <article key={article.id} className="group flex gap-4 items-start">
             <div className="relative w-28 h-20 shrink-0 rounded-lg overflow-hidden">
               <Image

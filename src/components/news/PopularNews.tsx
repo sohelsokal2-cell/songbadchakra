@@ -1,14 +1,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { getPopularNews } from '@/data/mockNews'
+import type { NewsArticle } from '@/types/news'
 import { formatRelativeTime, toBengaliNumber } from '@/lib/utils'
 
 interface PopularNewsProps {
   limit?: number
 }
 
-export default function PopularNews({ limit = 5 }: PopularNewsProps) {
-  const articles = getPopularNews(limit)
+export default function PopularNews({ limit = 5, articles = [] }: PopularNewsProps & { articles?: NewsArticle[] }) {
+  const visibleArticles = articles.slice(0, limit)
 
   return (
     <aside aria-labelledby="sidebar-popular">
@@ -18,7 +18,7 @@ export default function PopularNews({ limit = 5 }: PopularNewsProps) {
         </h2>
       </div>
       <ol className="space-y-3">
-        {articles.map((article, idx) => (
+        {visibleArticles.map((article, idx) => (
           <li key={article.id} className="group flex gap-3 items-start">
             {/* Number badge */}
             <span
