@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { runAutomationCycle } from '@/lib/ai/job-recovery'
 import { verifyCronAuth } from '@/lib/cron-auth'
 
+// Vercel: recovery cycle (retries + dead-letter + queued jobs) can exceed the
+// 10s default function timeout. Hobby allows up to 60s.
+export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 /**

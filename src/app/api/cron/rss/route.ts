@@ -5,6 +5,10 @@ import { runAutomationCycle } from '@/lib/ai/job-recovery'
 import { getPipelineItemsPerRun } from '@/lib/ai/pipeline'
 import { verifyCronAuth } from '@/lib/cron-auth'
 
+// Vercel: full ingestion + recovery cycle can exceed the 10s default function
+// timeout. Hobby allows up to 60s; the job-queue design recovers any remaining
+// work on the next run if this budget is hit.
+export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 /**
