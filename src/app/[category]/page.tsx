@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CATEGORIES, getCategoryBySlug, SITE_NAME, SITE_DOMAIN } from '@/lib/utils'
+import { CATEGORIES, getCategoryBySlug, SITE_NAME, SITE_DOMAIN, decodeSlugParam } from '@/lib/utils'
 import { listPublishedArticles } from '@/lib/public-news-repository'
 import NewsCard from '@/components/news/NewsCard'
 import FeaturedNewsCard from '@/components/news/FeaturedNewsCard'
@@ -24,7 +24,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { category: slug } = await params
-  const cat = getCategoryBySlug(slug)
+  const cat = getCategoryBySlug(decodeSlugParam(slug))
 
   if (!cat) return {}
 
@@ -53,7 +53,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { category: slug } = await params
-  const cat = getCategoryBySlug(slug)
+  const cat = getCategoryBySlug(decodeSlugParam(slug))
 
   if (!cat) {
     notFound()

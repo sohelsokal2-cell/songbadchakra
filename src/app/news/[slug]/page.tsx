@@ -7,7 +7,7 @@ import NewsCard from '@/components/news/NewsCard'
 import ArticleActions from '@/components/news/ArticleActions'
 import TabbedNewsWidget from '@/components/news/TabbedNewsWidget'
 import AdvertisementPlaceholder from '@/components/ui/AdvertisementPlaceholder'
-import { formatDate, formatRelativeTime, SITE_NAME, SITE_DOMAIN } from '@/lib/utils'
+import { formatDate, formatRelativeTime, SITE_NAME, SITE_DOMAIN, decodeSlugParam } from '@/lib/utils'
 
 interface ArticlePageProps {
   params: Promise<{ slug: string }>
@@ -22,7 +22,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ArticlePageProps): Promise<Metadata> {
   const { slug } = await params
-  const article = await getPublishedArticleBySlug(slug)
+  const article = await getPublishedArticleBySlug(decodeSlugParam(slug))
   if (!article) return {}
 
   return {
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: ArticlePageProps): Promise<Me
 
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { slug } = await params
-  const article = await getPublishedArticleBySlug(slug)
+  const article = await getPublishedArticleBySlug(decodeSlugParam(slug))
   if (!article) notFound()
 
   const allArticles = await listPublishedArticles()

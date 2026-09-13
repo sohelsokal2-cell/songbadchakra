@@ -58,6 +58,21 @@ export function getSiteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? 'https://songbadchakra.com.bd'
 }
 
+/**
+ * Next.js 16 (Turbopack) hands dynamic route params over still percent-encoded
+ * (e.g. "%E0%A6%A6-..." for the Bengali "দ-..."), so DB slug lookups never
+ * match and every article page 404s. Decode before matching. decodeURIComponent
+ * is a no-op for already-decoded values, and malformed sequences fall back to
+ * the raw value so a bad URL returns 404 instead of throwing a 500.
+ */
+export function decodeSlugParam(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 // ─── Site-wide constants ─────────────────────────────────────────────────────
 
 export const SITE_NAME = 'সংবাদচক্র'
